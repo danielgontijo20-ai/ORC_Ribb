@@ -2,75 +2,59 @@
 
 Sistema para geração de orçamentos da empresa (etiquetas e suprimentos).
 
-## Stack escolhida
+## Stack
 
-- **Python** — linguagem principal
-- **Streamlit** — interface web (próximas etapas)
-- **SQLite** — banco de dados local
-- **pandas + openpyxl** — leitura da planilha Excel
+- **Python**
+- **Streamlit** (interface)
+- **SQLite** (banco local)
+- **pandas + openpyxl** (importação da planilha)
 
-## Estrutura atual
+## Estrutura
 
 ```
 ORC_Ribb/
+├── app.py                      ← tela Streamlit
 ├── data/
 │   ├── planilhas/Banco_RBT.xlsx
 │   └── database/orc_ribb.db
 ├── docs/
-│   └── etapa3-banco-de-dados.md
+│   ├── etapa3-banco-de-dados.md
+│   └── etapa4-interface-streamlit.md
 ├── src/
-│   ├── db/                 # schema, conexão e importação
-│   └── services/           # regras de negócio
-├── requirements.txt
-└── README.md
+│   ├── db/                     ← banco e importação
+│   ├── services/               ← regras de negócio e cálculos
+│   └── ui/                     ← helpers da interface
+└── requirements.txt
 ```
 
-## Como preparar o ambiente (passo a passo)
+## Preparar o ambiente (Windows)
 
-### 1) Entrar na pasta do projeto
-
-```bash
-cd ORC_Ribb
-```
-
-### 2) Criar um ambiente virtual (recomendado)
-
-```bash
+```powershell
+cd C:\Users\dani_\ORC_Ribb
 python -m venv .venv
-```
-
-Ativar:
-
-- Windows (PowerShell): `.venv\Scripts\Activate.ps1`
-- Windows (CMD): `.venv\Scripts\activate.bat`
-- Mac/Linux: `source .venv/bin/activate`
-
-### 3) Instalar dependências
-
-```bash
+.\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-```
-
-### 4) Importar a planilha para o banco
-
-```bash
 python -m src.db.import_banco_rbt
 ```
 
-Ao terminar, o arquivo `data/database/orc_ribb.db` será criado/atualizado.
+## Rodar o sistema
 
-## O que já está pronto (Etapa 3)
+```powershell
+streamlit run app.py
+```
 
-- Planilha organizada em `data/planilhas/Banco_RBT.xlsx`
-- Banco SQLite com cadastros e histórico de faturamento
-- Consulta de **última venda do produto para o cliente**
-- Base para o grid de itens já vendidos ao cliente
+Abre no navegador: `http://localhost:8501`
 
-## Próximos passos
+## Fluxo atual
 
-1. Tela Streamlit para escolher cliente
-2. Grid de busca de produtos vendidos ao cliente
-3. Cálculo de orçamento de etiquetas e suprimentos
-4. Pré-orçamento final com lucro total
+1. Selecionar cliente (ou avulso)
+2. Buscar produto no histórico do cliente (grid + filtros)
+3. Ver preço da última venda **daquele produto para aquele cliente**
+4. Calcular orçamento de Etiqueta ou Suprimentos
+5. Salvar itens no pré-orçamento
+6. Ver valor total e lucro total
 
-Leia também: [docs/etapa3-banco-de-dados.md](docs/etapa3-banco-de-dados.md)
+## Documentação didática
+
+- [Etapa 3 — Banco e importação](docs/etapa3-banco-de-dados.md)
+- [Etapa 4 — Interface Streamlit](docs/etapa4-interface-streamlit.md)
