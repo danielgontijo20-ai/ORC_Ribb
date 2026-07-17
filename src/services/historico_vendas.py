@@ -3,6 +3,7 @@ Consultas de histórico de vendas.
 
 Regra de negócio (combinada com o usuário):
 - A "última venda" é a última venda daquele PRODUTO para aquele CLIENTE.
+- Se o item não tiver código na nota, usamos a descrição como chave.
 """
 
 from __future__ import annotations
@@ -20,8 +21,12 @@ def listar_itens_vendidos_ao_cliente(
     """
     Grid de itens já vendidos para o cliente.
 
-    Retorna 1 linha por produto (código), com dados da última venda
+    Retorna 1 linha por produto, com dados da última venda
     e quantas vezes aquele item foi vendido ao cliente.
+
+    Chave do produto:
+    - código do item, se existir
+    - senão, a descrição (para notas antigas sem código)
     """
     sql = """
         WITH base AS (
@@ -33,16 +38,22 @@ def listar_itens_vendidos_ao_cliente(
                 f.valor_unitario,
                 f.valor_total,
                 s.nome AS segmento,
+                COALESCE(f.codigo_item, f.descricao_item) AS chave_produto,
                 ROW_NUMBER() OVER (
-                    PARTITION BY f.codigo_item
+                    PARTITION BY COALESCE(f.codigo_item, f.descricao_item)
                     ORDER BY f.data_emissao DESC, f.id DESC
                 ) AS rn,
-                COUNT(*) OVER (PARTITION BY f.codigo_item) AS vezes_vendido
+                COUNT(*) OVER (
+                    PARTITION BY COALESCE(f.codigo_item, f.descricao_item)
+                ) AS vezes_vendido
             FROM faturamento f
             LEFT JOIN produtos p ON p.codigo = f.codigo_item
             LEFT JOIN segmentos s ON s.id = p.segmento_id
             WHERE f.cliente_id = ?
-              AND f.codigo_item IS NOT NULL
+              AND (
+                    f.codigo_item IS NOT NULL
+                    OR f.descricao_item IS NOT NULL
+                  )
         )
         SELECT
             codigo_item,
@@ -60,9 +71,7 @@ def listar_itens_vendidos_ao_cliente(
 
     filters = []
     if termo:
-        filters.append(
-            "(codigo_item LIKE ? OR descricao_item LIKE ?)"
-        )
+        filters.append("(codigo_item LIKE ? OR descricao_item LIKE ?)")
         like = f"%{termo}%"
         params.extend([like, like])
     if segmento:
@@ -79,25 +88,50 @@ def listar_itens_vendidos_ao_cliente(
 def ultima_venda_produto_cliente(
     conn: sqlite3.Connection,
     cliente_id: int,
-    codigo_item: str,
+    codigo_item: str | None = None,
+    descricao_item: str | None = None,
 ) -> sqlite3.Row | None:
     """Retorna a última venda do produto para o cliente informado."""
-    row = conn.execute(
-        """
-        SELECT
-            codigo_item,
-            descricao_item,
-            data_emissao,
-            quantidade,
-            valor_unitario,
-            valor_total,
-            numero_nota
-        FROM faturamento
-        WHERE cliente_id = ?
-          AND codigo_item = ?
-        ORDER BY data_emissao DESC, id DESC
-        LIMIT 1
-        """,
-        (cliente_id, codigo_item),
-    ).fetchone()
-    return row
+    if codigo_item:
+        row = conn.execute(
+            """
+            SELECT
+                codigo_item,
+                descricao_item,
+                data_emissao,
+                quantidade,
+                valor_unitario,
+                valor_total,
+                numero_nota
+            FROM faturamento
+            WHERE cliente_id = ?
+              AND codigo_item = ?
+            ORDER BY data_emissao DESC, id DESC
+            LIMIT 1
+            """,
+            (cliente_id, codigo_item),
+        ).fetchone()
+        return row
+
+    if descricao_item:
+        row = conn.execute(
+            """
+            SELECT
+                codigo_item,
+                descricao_item,
+                data_emissao,
+                quantidade,
+                valor_unitario,
+                valor_total,
+                numero_nota
+            FROM faturamento
+            WHERE cliente_id = ?
+              AND descricao_item = ?
+            ORDER BY data_emissao DESC, id DESC
+            LIMIT 1
+            """,
+            (cliente_id, descricao_item),
+        ).fetchone()
+        return row
+
+    return None
