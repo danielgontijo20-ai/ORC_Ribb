@@ -20,15 +20,59 @@ def init_state(conn) -> None:
         st.session_state.memoria_calculo = None
     if "show_dialog" not in st.session_state:
         st.session_state.show_dialog = None
+    if "nav_stack" not in st.session_state:
+        st.session_state.nav_stack = []
 
     if "proposta" not in st.session_state:
         st.session_state.proposta = _nova_proposta(cfg)
 
 
+def _snapshot_tela() -> dict:
+    return {
+        "tela": st.session_state.get("tela", "menu"),
+        "cadastro_tela": st.session_state.get("cadastro_tela", "hub"),
+        "modo_form": st.session_state.get("modo_form"),
+    }
+
+
+def ir_para(tela: str, *, cadastro_tela: str | None = None, modo_form=None) -> None:
+    """Navega para uma tela, guardando a atual na pilha de voltar."""
+    atual = _snapshot_tela()
+    if atual["tela"] != tela or (
+        cadastro_tela is not None and atual["cadastro_tela"] != cadastro_tela
+    ):
+        st.session_state.nav_stack.append(atual)
+
+    st.session_state.tela = tela
+    if cadastro_tela is not None:
+        st.session_state.cadastro_tela = cadastro_tela
+    if modo_form is not None:
+        st.session_state.modo_form = modo_form
+    st.rerun()
+
+
+def voltar() -> None:
+    """Volta para a tela anterior da pilha; se vazia, vai ao menu."""
+    stack = st.session_state.get("nav_stack") or []
+    if not stack:
+        st.session_state.tela = "menu"
+        st.session_state.cadastro_tela = "hub"
+        st.session_state.modo_form = None
+        st.rerun()
+        return
+
+    anterior = stack.pop()
+    st.session_state.nav_stack = stack
+    st.session_state.tela = anterior.get("tela", "menu")
+    st.session_state.cadastro_tela = anterior.get("cadastro_tela", "hub")
+    st.session_state.modo_form = anterior.get("modo_form")
+    st.rerun()
+
+
 def _nova_proposta(cfg: dict) -> dict:
     return {
         "numero": None,
-        "cliente": None,  # dict id/nome/cnpj_cpf ou avulso
+        "cliente": None,
         "solicitante": "",
         "itens": [],
         "validade_proposta": cfg.get("validade_proposta", "15 dias"),

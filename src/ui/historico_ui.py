@@ -5,9 +5,10 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
-from src.services.clientes import buscar_clientes
+from src.services.clientes import buscar_clientes, contar_clientes
 from src.services.historico_nf import listar_vendas_por_cliente
 from src.ui.formatters import brl, texto_ou_traco
+from src.ui.state import voltar
 
 
 def render_historico(conn) -> None:
@@ -19,9 +20,8 @@ def render_historico(conn) -> None:
         )
         st.caption("Menu → Histórico de Vendas")
     with top2:
-        if st.button("← Menu", key="hist_menu"):
-            st.session_state.tela = "menu"
-            st.rerun()
+        if st.button("← Voltar", key="hist_voltar"):
+            voltar()
 
     st.write(
         "Filtre um cliente cadastrado e veja as vendas da mais recente para a mais antiga, "
@@ -29,7 +29,9 @@ def render_historico(conn) -> None:
     )
 
     termo = st.text_input("Pesquisar cliente (nome ou CNPJ)")
-    clientes = buscar_clientes(conn, termo=termo or None, limite=100)
+    total = contar_clientes(conn, termo=termo or None)
+    clientes = buscar_clientes(conn, termo=termo or None, limite=None)
+    st.caption(f"{total} cliente(s) encontrado(s)")
     opcoes = {"(todos os clientes)": None}
     opcoes.update({f"{c['nome']} | {c['cnpj_cpf']}": c["id"] for c in clientes})
     escolha = st.selectbox("Cliente", list(opcoes.keys()))

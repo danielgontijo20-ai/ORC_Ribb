@@ -24,7 +24,8 @@ def connect(db_path: Path | str = DB_PATH) -> sqlite3.Connection:
     path = Path(db_path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    conn = sqlite3.connect(path)
+    # check_same_thread=False: popups do Streamlit podem rodar em outra thread
+    conn = sqlite3.connect(path, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return conn

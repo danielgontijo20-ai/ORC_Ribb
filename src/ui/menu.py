@@ -7,6 +7,7 @@ from pathlib import Path
 import streamlit as st
 
 from src.services.configuracoes import carregar_config
+from src.ui.state import ir_para
 
 
 def render_menu(conn) -> None:
@@ -21,15 +22,11 @@ def render_menu(conn) -> None:
     with left:
         st.markdown('<div class="menu-btn">', unsafe_allow_html=True)
         if st.button("NOVO ORC", use_container_width=True, type="primary"):
-            st.session_state.tela = "novo_orcamento"
-            st.rerun()
+            ir_para("novo_orcamento")
         if st.button("CADASTROS", use_container_width=True):
-            st.session_state.tela = "cadastros"
-            st.session_state.cadastro_tela = "hub"
-            st.rerun()
+            ir_para("cadastros", cadastro_tela="hub")
         if st.button("HISTÓRICO DE VENDAS", use_container_width=True):
-            st.session_state.tela = "historico"
-            st.rerun()
+            ir_para("historico")
         st.markdown("</div>", unsafe_allow_html=True)
 
     with right:

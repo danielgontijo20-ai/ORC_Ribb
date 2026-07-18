@@ -23,7 +23,8 @@ from src.services.calculos_orcamento import (
     calcular_orcamento_etiqueta,
     calcular_orcamento_suprimentos,
 )
-from src.services.clientes import buscar_clientes, obter_cliente
+from src.db.database import connect
+from src.services.clientes import buscar_clientes, contar_clientes, obter_cliente
 from src.services.configuracoes import (
     carregar_config,
     get_float,
@@ -35,14 +36,14 @@ from src.services.descricao_item import (
 )
 from src.services.pdf_proposta import gerar_pdf_proposta
 from src.ui.formatters import brl, texto_ou_traco
-from src.ui.state import reiniciar_proposta, totais_proposta
+from src.ui.state import reiniciar_proposta, totais_proposta, voltar
 
 
 def render_novo_orcamento(conn) -> None:
     cfg = carregar_config(conn)
     proposta = st.session_state.proposta
 
-    top1, top2 = st.columns([4, 1])
+    top1, top2, top3 = st.columns([3.2, 1, 1.2])
     with top1:
         st.markdown(
             '<p class="orc-title">Novo Orçamento</p>',
@@ -50,12 +51,21 @@ def render_novo_orcamento(conn) -> None:
         )
         st.caption("Menu → Novo Orçamento")
     with top2:
-        if st.button("← Menu"):
-            st.session_state.tela = "menu"
+        if st.button("← Voltar", use_container_width=True, key="orc_voltar"):
+            voltar()
+    with top3:
+        if st.button(
+            "Limpar orçamento",
+            use_container_width=True,
+            type="secondary",
+            key="orc_limpar",
+        ):
+            reiniciar_proposta(conn)
+            st.success("Orçamento limpo. Você pode começar do zero.")
             st.rerun()
 
-    # Dialogs
-    _render_dialogs(conn, cfg)
+    # Dialogs (abrem conexão própria — evita erro de thread do SQLite)
+    _render_dialogs(cfg)
 
     col_form, col_preview = st.columns([1.05, 1], gap="medium")
 
@@ -120,10 +130,14 @@ def _painel_esquerda(conn, cfg, proposta) -> None:
             _gerar_e_oferecer_pdf(cfg, proposta)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    if st.session_state.modo_form == "etiqueta":
-        _form_etiqueta(conn, cfg, proposta)
-    elif st.session_state.modo_form == "suprimentos":
-        _form_suprimentos(cfg, proposta)
+    if st.session_state.modo_form in ("etiqueta", "suprimentos"):
+        if st.button("← Fechar formulário de inserção", key="fechar_form_item"):
+            st.session_state.modo_form = None
+            st.rerun()
+        if st.session_state.modo_form == "etiqueta":
+            _form_etiqueta(conn, cfg, proposta)
+        else:
+            _form_suprimentos(cfg, proposta)
 
 
 def _form_etiqueta(conn, cfg, proposta) -> None:
@@ -377,8 +391,6 @@ def _garantir_numero(conn, proposta) -> None:
 
 
 def _garantir_numero_from_session(proposta) -> None:
-    from src.db.database import connect
-
     if not proposta.get("numero"):
         with connect() as conn:
             proposta["numero"] = proximo_numero_orcamento(conn)
@@ -464,9 +476,7 @@ def _painel_proposta(cfg, proposta) -> None:
     if logo_r and Path(logo_r).exists():
         st.image(logo_r, width=100)
 
-    if st.button("Reiniciar orçamento"):
-        from src.db.database import connect
-
+    if st.button("Limpar orçamento (começar do zero)", key="limpar_preview"):
         with connect() as conn:
             reiniciar_proposta(conn)
         st.rerun()
@@ -516,10 +526,10 @@ def _gerar_e_oferecer_pdf(cfg, proposta) -> None:
     )
 
 
-def _render_dialogs(conn, cfg) -> None:
+def _render_dialogs(cfg) -> None:
     which = st.session_state.get("show_dialog")
     if which == "cliente":
-        _dialog_cliente(conn)
+        _dialog_cliente()
     elif which == "cliente_avulso":
         _dialog_cliente_avulso()
     elif which == "condicoes":
@@ -529,23 +539,28 @@ def _render_dialogs(conn, cfg) -> None:
 
 
 @st.dialog("Selecionar cliente")
-def _dialog_cliente(conn) -> None:
+def _dialog_cliente() -> None:
     termo = st.text_input("Pesquisar por CNPJ ou Nome")
-    clientes = buscar_clientes(conn, termo=termo or None, limite=80)
-    if not clientes:
-        st.warning("Nenhum cliente encontrado.")
-    else:
-        df = pd.DataFrame([dict(c) for c in clientes])[
-            ["cnpj_cpf", "nome", "uf"]
-        ].rename(columns={"cnpj_cpf": "CNPJ", "nome": "Nome", "uf": "UF"})
-        st.dataframe(df, use_container_width=True, hide_index=True)
-        opcoes = {f"{c['nome']} | {c['cnpj_cpf']}": c["id"] for c in clientes}
-        escolha = st.selectbox("Cliente", list(opcoes.keys()))
-        if st.button("Confirmar", type="primary"):
-            cli = obter_cliente(conn, opcoes[escolha])
-            st.session_state.proposta["cliente"] = dict(cli)
-            st.session_state.show_dialog = None
-            st.rerun()
+    # Nova conexão nesta thread do popup (corrige ProgrammingError)
+    with connect() as conn:
+        total = contar_clientes(conn, termo=termo or None)
+        clientes = buscar_clientes(conn, termo=termo or None, limite=None)
+        st.caption(f"{total} cliente(s) encontrado(s) no banco")
+        if not clientes:
+            st.warning("Nenhum cliente encontrado.")
+        else:
+            df = pd.DataFrame([dict(c) for c in clientes])[
+                ["cnpj_cpf", "nome", "uf"]
+            ].rename(columns={"cnpj_cpf": "CNPJ", "nome": "Nome", "uf": "UF"})
+            st.dataframe(df, use_container_width=True, hide_index=True, height=320)
+            opcoes = {f"{c['nome']} | {c['cnpj_cpf']}": c["id"] for c in clientes}
+            escolha = st.selectbox("Cliente", list(opcoes.keys()))
+            if st.button("Confirmar", type="primary"):
+                with connect() as conn2:
+                    cli = obter_cliente(conn2, opcoes[escolha])
+                st.session_state.proposta["cliente"] = dict(cli)
+                st.session_state.show_dialog = None
+                st.rerun()
     if st.button("Fechar"):
         st.session_state.show_dialog = None
         st.rerun()
