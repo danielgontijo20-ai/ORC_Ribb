@@ -92,7 +92,7 @@ def render_novo_orcamento(conn) -> None:
 
     _render_dialogs(cfg)
 
-    # Prévia alinhada ao topo com a seleção de cliente
+    # Duas colunas no mesmo nível: cliente/formação | prévia (sempre no topo)
     try:
         col_form, col_preview = st.columns(
             [1.05, 1], gap="medium", vertical_alignment="top"
@@ -103,6 +103,7 @@ def render_novo_orcamento(conn) -> None:
     with col_form:
         _painel_esquerda(conn, cfg, proposta)
     with col_preview:
+        # Conteúdo direto na coluna — sem HTML wrapper (evita quadro branco vazio)
         _painel_proposta(conn, cfg, proposta)
 
 
@@ -192,7 +193,6 @@ def _painel_esquerda(conn, cfg, proposta) -> None:
                 _gerar_e_oferecer_pdf(conn, cfg, proposta)
 
     if modo in ("etiqueta", "suprimentos"):
-        st.markdown('<div class="orc-slide-panel"></div>', unsafe_allow_html=True)
         if st.button(
             "↑ Recuar formulário de inserção",
             key="fechar_form_item",
@@ -567,10 +567,10 @@ def _garantir_numero(conn, proposta) -> None:
 
 
 def _painel_proposta(conn, cfg, proposta) -> None:
-    # st.container envolve de verdade o conteúdo (HTML solto criava caixa vazia no topo)
-    with st.container(border=True):
+    """Prévia na coluna direita — um único container com todo o conteúdo."""
+    preview = st.container(border=True)
+    with preview:
         st.markdown("#### Prévia da proposta")
-        st.caption("Inicia no topo • alinhada à seleção de cliente")
 
         logo = cfg.get("logo_cabecalho") or ""
         if logo and Path(logo).exists():
@@ -624,8 +624,9 @@ def _painel_proposta(conn, cfg, proposta) -> None:
                 max_value=len(itens),
                 value=0,
                 step=1,
+                key="rem_item_preview",
             )
-            if st.button("Remover item") and rem > 0:
+            if st.button("Remover item", key="btn_rem_item_preview") and rem > 0:
                 proposta["itens"].pop(rem - 1)
                 st.rerun()
         else:

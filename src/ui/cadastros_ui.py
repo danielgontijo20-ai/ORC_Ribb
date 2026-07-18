@@ -37,7 +37,13 @@ def _cad_seq() -> int:
 
 
 def _bump_cad_seq() -> None:
+    """Invalida select + campos (novas keys = formulário vazio em (novo))."""
     st.session_state.cad_form_seq = _cad_seq() + 1
+
+
+def _sel_key(base: str) -> str:
+    """Key do selectbox inclui a sequência — após salvar volta a (novo)."""
+    return f"{base}_{_cad_seq()}"
 
 
 def _form_key(prefix: str, atual) -> str:
@@ -46,23 +52,25 @@ def _form_key(prefix: str, atual) -> str:
     return f"{prefix}_{rid}_{_cad_seq()}"
 
 
-def _preparar_nova_insercao(select_key: str) -> None:
-    """Após salvar: limpa formulário e deixa pronto para nova inserção."""
-    _bump_cad_seq()
-    st.session_state[select_key] = "(novo)"
-    # Remove valores antigos de widgets deste cadastro
-    prefix_map = {
-        "cli_sel": "cli_",
-        "mp_sel": "mp_",
-        "tub_sel": "tub_",
-        "cx_sel": "cx_",
-        "faca_sel": "faca_",
-    }
-    prefix = prefix_map.get(select_key, "")
-    if prefix:
-        for key in list(st.session_state.keys()):
-            if isinstance(key, str) and key.startswith(prefix) and key != select_key:
-                del st.session_state[key]
+def _init_widget(key: str, default) -> None:
+    """Define default só na 1ª criação da key (evita value= + key= do Streamlit)."""
+    if key not in st.session_state:
+        st.session_state[key] = default
+
+
+def _text_input(label: str, key: str, default: str = "", **kwargs):
+    _init_widget(key, default)
+    return st.text_input(label, key=key, **kwargs)
+
+
+def _number_input(label: str, key: str, default: float = 0.0, **kwargs):
+    _init_widget(key, float(default) if default is not None else 0.0)
+    return st.number_input(label, key=key, **kwargs)
+
+
+def _text_area(label: str, key: str, default: str = "", **kwargs):
+    _init_widget(key, default)
+    return st.text_area(label, key=key, **kwargs)
 
 
 def render_cadastros(conn) -> None:
@@ -138,26 +146,22 @@ def _clientes(conn) -> None:
     modo = st.selectbox(
         "Registro",
         ["(novo)"] + list(ids.keys()),
-        key="cli_sel",
+        key=_sel_key("cli_sel"),
     )
     atual = None
     if modo != "(novo)":
         atual = next(r for r in rows if r["id"] == ids[modo])
 
-    nome = st.text_input(
-        "Nome",
-        value=(atual["nome"] if atual else ""),
-        key=_form_key("cli_nome", atual),
-    )
-    cnpj = st.text_input(
+    nome = _text_input("Nome", _form_key("cli_nome", atual), atual["nome"] if atual else "")
+    cnpj = _text_input(
         "CNPJ/CPF",
-        value=(atual["cnpj_cpf"] if atual else ""),
-        key=_form_key("cli_cnpj", atual),
+        _form_key("cli_cnpj", atual),
+        atual["cnpj_cpf"] if atual else "",
     )
-    uf = st.text_input(
+    uf = _text_input(
         "UF",
-        value=(atual["uf"] if atual and atual["uf"] else ""),
-        key=_form_key("cli_uf", atual),
+        _form_key("cli_uf", atual),
+        (atual["uf"] if atual and atual["uf"] else ""),
     )
     c1, c2 = st.columns(2)
     with c1:
@@ -172,13 +176,13 @@ def _clientes(conn) -> None:
                     uf=uf.strip() or None,
                     cliente_id=atual["id"] if atual else None,
                 )
-                _preparar_nova_insercao("cli_sel")
+                _bump_cad_seq()
                 st.success("Cliente salvo. Formulário pronto para nova inserção.")
                 st.rerun()
     with c2:
         if atual and st.button("Excluir cliente"):
             excluir_cliente(conn, atual["id"])
-            _preparar_nova_insercao("cli_sel")
+            _bump_cad_seq()
             st.success("Cliente excluído.")
             st.rerun()
 
@@ -194,44 +198,43 @@ def _materias(conn) -> None:
         st.dataframe(pd.DataFrame([dict(r) for r in rows]), use_container_width=True, hide_index=True)
 
     ids = {f"{r['id']} - {r['nome']}": r["id"] for r in rows}
-    modo = st.selectbox("Registro", ["(novo)"] + list(ids.keys()), key="mp_sel")
+    modo = st.selectbox(
+        "Registro",
+        ["(novo)"] + list(ids.keys()),
+        key=_sel_key("mp_sel"),
+    )
     atual = next((r for r in rows if modo != "(novo)" and r["id"] == ids[modo]), None)
 
-    codigo = st.text_input(
-        "Código",
-        value=(atual["codigo"] if atual else ""),
-        key=_form_key("mp_cod", atual),
-    )
-    nome = st.text_input(
+    codigo = _text_input("Código", _form_key("mp_cod", atual), atual["codigo"] if atual else "")
+    nome = _text_input(
         "Matéria-prima",
-        value=(atual["nome"] if atual else ""),
-        key=_form_key("mp_nome", atual),
+        _form_key("mp_nome", atual),
+        atual["nome"] if atual else "",
     )
-    nome_orc = st.text_input(
+    nome_orc_default = ""
+    if atual:
+        nome_orc_default = atual["nome_exibicao_orc"] or atual["nome"] or ""
+    nome_orc = _text_input(
         "Nome de exibição mp ORC",
-        value=(
-            atual["nome_exibicao_orc"]
-            if atual and atual["nome_exibicao_orc"]
-            else (atual["nome"] if atual else "")
-        ),
-        key=_form_key("mp_orc", atual),
+        _form_key("mp_orc", atual),
+        nome_orc_default,
     )
-    preco = st.number_input(
+    preco = _number_input(
         "Preço de compra",
-        value=float(atual["preco_compra"] or 0) if atual else 0.0,
+        _form_key("mp_preco", atual),
+        float(atual["preco_compra"] or 0) if atual else 0.0,
         step=0.01,
-        key=_form_key("mp_preco", atual),
     )
-    custo = st.number_input(
+    custo = _number_input(
         "Custo",
-        value=float(atual["custo"]) if atual else 0.0,
+        _form_key("mp_custo", atual),
+        float(atual["custo"]) if atual else 0.0,
         step=0.01,
-        key=_form_key("mp_custo", atual),
     )
-    obs = st.text_area(
+    obs = _text_area(
         "Observações",
-        value=(atual["observacoes"] if atual and atual["observacoes"] else ""),
-        key=_form_key("mp_obs", atual),
+        _form_key("mp_obs", atual),
+        (atual["observacoes"] if atual and atual["observacoes"] else ""),
     )
     c1, c2 = st.columns(2)
     with c1:
@@ -246,13 +249,13 @@ def _materias(conn) -> None:
                 observacoes=obs or None,
                 materia_id=atual["id"] if atual else None,
             )
-            _preparar_nova_insercao("mp_sel")
-            st.success("Salvo. Formulário pronto para nova inserção.")
+            _bump_cad_seq()
+            st.success("Salvo. Formulário limpo para nova inserção.")
             st.rerun()
     with c2:
         if atual and st.button("Excluir matéria-prima"):
             excluir_materia(conn, atual["id"])
-            _preparar_nova_insercao("mp_sel")
+            _bump_cad_seq()
             st.success("Excluído.")
             st.rerun()
 
@@ -265,38 +268,33 @@ def _tubetes(conn) -> None:
     if rows:
         st.dataframe(pd.DataFrame([dict(r) for r in rows]), use_container_width=True, hide_index=True)
     ids = {f"{r['id']} - {r['nome']}": r["id"] for r in rows}
-    modo = st.selectbox("Registro", ["(novo)"] + list(ids.keys()), key="tub_sel")
+    modo = st.selectbox(
+        "Registro",
+        ["(novo)"] + list(ids.keys()),
+        key=_sel_key("tub_sel"),
+    )
     atual = next((r for r in rows if modo != "(novo)" and r["id"] == ids[modo]), None)
-    codigo = st.text_input(
-        "Código",
-        value=(atual["codigo"] if atual else ""),
-        key=_form_key("tub_cod", atual),
-    )
-    nome = st.text_input(
-        "Tubete",
-        value=(atual["nome"] if atual else ""),
-        key=_form_key("tub_nome", atual),
-    )
-    nome_orc = st.text_input(
+    codigo = _text_input("Código", _form_key("tub_cod", atual), atual["codigo"] if atual else "")
+    nome = _text_input("Tubete", _form_key("tub_nome", atual), atual["nome"] if atual else "")
+    nome_orc_default = ""
+    if atual:
+        nome_orc_default = atual["nome_exibicao_orc"] or atual["nome"] or ""
+    nome_orc = _text_input(
         "Nome de exibição tubete ORC",
-        value=(
-            atual["nome_exibicao_orc"]
-            if atual and atual["nome_exibicao_orc"]
-            else (atual["nome"] if atual else "")
-        ),
-        key=_form_key("tub_orc", atual),
+        _form_key("tub_orc", atual),
+        nome_orc_default,
     )
-    preco = st.number_input(
+    preco = _number_input(
         "Preço compra",
-        value=float(atual["preco_compra"] or 0) if atual else 0.0,
+        _form_key("tub_preco", atual),
+        float(atual["preco_compra"] or 0) if atual else 0.0,
         step=0.01,
-        key=_form_key("tub_preco", atual),
     )
-    custo = st.number_input(
+    custo = _number_input(
         "Custo",
-        value=float(atual["custo"]) if atual else 0.0,
+        _form_key("tub_custo", atual),
+        float(atual["custo"]) if atual else 0.0,
         step=0.01,
-        key=_form_key("tub_custo", atual),
     )
     c1, c2 = st.columns(2)
     with c1:
@@ -310,13 +308,13 @@ def _tubetes(conn) -> None:
                 custo=custo,
                 tubete_id=atual["id"] if atual else None,
             )
-            _preparar_nova_insercao("tub_sel")
-            st.success("Salvo. Formulário pronto para nova inserção.")
+            _bump_cad_seq()
+            st.success("Salvo. Formulário limpo para nova inserção.")
             st.rerun()
     with c2:
         if atual and st.button("Excluir tubete"):
             excluir_tubete(conn, atual["id"])
-            _preparar_nova_insercao("tub_sel")
+            _bump_cad_seq()
             st.success("Excluído.")
             st.rerun()
 
@@ -328,23 +326,19 @@ def _caixas(conn) -> None:
     if rows:
         st.dataframe(pd.DataFrame([dict(r) for r in rows]), use_container_width=True, hide_index=True)
     ids = {f"{r['id']} - {r['nome']}": r["id"] for r in rows}
-    modo = st.selectbox("Registro", ["(novo)"] + list(ids.keys()), key="cx_sel")
+    modo = st.selectbox(
+        "Registro",
+        ["(novo)"] + list(ids.keys()),
+        key=_sel_key("cx_sel"),
+    )
     atual = next((r for r in rows if modo != "(novo)" and r["id"] == ids[modo]), None)
-    codigo = st.text_input(
-        "Código",
-        value=(atual["codigo"] if atual else ""),
-        key=_form_key("cx_cod", atual),
-    )
-    nome = st.text_input(
-        "Caixa",
-        value=(atual["nome"] if atual else ""),
-        key=_form_key("cx_nome", atual),
-    )
-    custo = st.number_input(
+    codigo = _text_input("Código", _form_key("cx_cod", atual), atual["codigo"] if atual else "")
+    nome = _text_input("Caixa", _form_key("cx_nome", atual), atual["nome"] if atual else "")
+    custo = _number_input(
         "Custo",
-        value=float(atual["custo"]) if atual else 5.0,
+        _form_key("cx_custo", atual),
+        float(atual["custo"]) if atual else 5.0,
         step=0.01,
-        key=_form_key("cx_custo", atual),
     )
     c1, c2 = st.columns(2)
     with c1:
@@ -356,13 +350,13 @@ def _caixas(conn) -> None:
                 custo=custo,
                 caixa_id=atual["id"] if atual else None,
             )
-            _preparar_nova_insercao("cx_sel")
-            st.success("Salvo. Formulário pronto para nova inserção.")
+            _bump_cad_seq()
+            st.success("Salvo. Formulário limpo para nova inserção.")
             st.rerun()
     with c2:
         if atual and st.button("Excluir caixa"):
             excluir_caixa(conn, atual["id"])
-            _preparar_nova_insercao("cx_sel")
+            _bump_cad_seq()
             st.success("Excluído.")
             st.rerun()
 
@@ -378,53 +372,56 @@ def _facas(conn) -> None:
     if rows:
         st.dataframe(pd.DataFrame([dict(r) for r in rows]), use_container_width=True, hide_index=True)
     ids = {f"{r['id']} - {r['tipo_faca']}": r["id"] for r in rows}
-    modo = st.selectbox("Registro", ["(novo)"] + list(ids.keys()), key="faca_sel")
+    modo = st.selectbox(
+        "Registro",
+        ["(novo)"] + list(ids.keys()),
+        key=_sel_key("faca_sel"),
+    )
     atual = next((r for r in rows if modo != "(novo)" and r["id"] == ids[modo]), None)
-    codigo = st.text_input(
+    codigo = _text_input(
         "Código",
-        value=(str(atual["codigo"]) if atual else ""),
-        key=_form_key("faca_cod", atual),
+        _form_key("faca_cod", atual),
+        str(atual["codigo"]) if atual else "",
     )
-    tipo = st.text_input(
+    tipo = _text_input(
         "Tipo faca",
-        value=(atual["tipo_faca"] if atual else ""),
-        key=_form_key("faca_tipo", atual),
+        _form_key("faca_tipo", atual),
+        atual["tipo_faca"] if atual else "",
     )
-    nome_orc = st.text_input(
+    nome_orc_default = ""
+    if atual:
+        nome_orc_default = atual["nome_exibicao_orc"] or atual["tipo_faca"] or ""
+    nome_orc = _text_input(
         "Nome de exibição faca ORC",
-        value=(
-            atual["nome_exibicao_orc"]
-            if atual and atual["nome_exibicao_orc"]
-            else (atual["tipo_faca"] if atual else "")
-        ),
-        key=_form_key("faca_orc", atual),
+        _form_key("faca_orc", atual),
+        nome_orc_default,
     )
     c1, c2 = st.columns(2)
     with c1:
-        largura = st.number_input(
+        largura = _number_input(
             "Largura",
-            value=float(atual["largura"]) if atual else 0.1,
+            _form_key("faca_larg", atual),
+            float(atual["largura"]) if atual else 0.1,
             format="%.6f",
-            key=_form_key("faca_larg", atual),
         )
-        altura = st.number_input(
+        altura = _number_input(
             "Altura",
-            value=float(atual["altura"]) if atual else 0.1,
+            _form_key("faca_alt", atual),
+            float(atual["altura"]) if atual else 0.1,
             format="%.6f",
-            key=_form_key("faca_alt", atual),
         )
     with c2:
-        gap_l = st.number_input(
+        gap_l = _number_input(
             "Gap lateral",
-            value=float(atual["gap_lateral"]) if atual else 0.006,
+            _form_key("faca_gapl", atual),
+            float(atual["gap_lateral"]) if atual else 0.006,
             format="%.6f",
-            key=_form_key("faca_gapl", atual),
         )
-        gap_v = st.number_input(
+        gap_v = _number_input(
             "Gap vertical",
-            value=float(atual["gap_vertical"] or 0) if atual else 0.003,
+            _form_key("faca_gapv", atual),
+            float(atual["gap_vertical"] or 0) if atual else 0.003,
             format="%.6f",
-            key=_form_key("faca_gapv", atual),
         )
     c1, c2 = st.columns(2)
     with c1:
@@ -440,13 +437,13 @@ def _facas(conn) -> None:
                 gap_vertical=gap_v,
                 faca_id=atual["id"] if atual else None,
             )
-            _preparar_nova_insercao("faca_sel")
-            st.success("Salvo. Formulário pronto para nova inserção.")
+            _bump_cad_seq()
+            st.success("Salvo. Formulário limpo para nova inserção.")
             st.rerun()
     with c2:
         if atual and st.button("Excluir faca"):
             excluir_faca(conn, atual["id"])
-            _preparar_nova_insercao("faca_sel")
+            _bump_cad_seq()
             st.success("Excluído.")
             st.rerun()
 

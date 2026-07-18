@@ -1,4 +1,4 @@
-"""Tema visual do ORC_Ribb — contraste reforçado + animações."""
+"""Tema visual do ORC_Ribb — contraste reforçado, layout estável nas colunas."""
 
 APP_CSS = """
 <style>
@@ -9,7 +9,6 @@ APP_CSS = """
         --orc-accent-soft: #D2F1EB;
         --orc-bg-1: #EAF1F6;
         --orc-bg-2: #DDE7EF;
-        --orc-card: #FFFFFF;
         --orc-border: #9FB4C7;
         --orc-border-strong: #6F8AA3;
         --orc-text: #10283D;
@@ -40,12 +39,11 @@ APP_CSS = """
         font-weight: 750;
         font-size: 1.55rem;
         margin: 0 0 0.25rem 0;
-        letter-spacing: -0.01em;
     }
     .orc-sub { color: var(--orc-muted); font-size: 0.95rem; margin-bottom: 1rem; }
     .orc-top-spacer { height: 0.35rem; }
 
-    /* Containers com borda do Streamlit = nossos cards */
+    /* Cards Streamlit — sem sticky/transform (quebravam alinhamento da prévia) */
     div[data-testid="stVerticalBlockBorderWrapper"] {
         background: linear-gradient(180deg, #ffffff 0%, #f7fbfd 100%) !important;
         border: 2px solid var(--orc-border-strong) !important;
@@ -53,34 +51,12 @@ APP_CSS = """
         box-shadow: 0 12px 30px rgba(10, 51, 88, 0.10) !important;
         padding: 0.35rem 0.2rem !important;
         margin-bottom: 0.75rem !important;
-        animation: orcFadeUp 0.35s ease-out;
+        animation: orcFade 0.3s ease-out;
     }
 
-    /* Coluna da prévia: cola no topo e acompanha a seleção de cliente */
-    div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[data-testid="stVerticalBlockBorderWrapper"] {
-        position: sticky;
-        top: 1.1rem;
-        z-index: 5;
-        border-color: var(--orc-primary) !important;
-        box-shadow: 0 14px 34px rgba(10, 51, 88, 0.14) !important;
-        animation: orcFadeIn 0.4s ease-out;
-    }
-
-    .orc-slide-panel {
-        animation: orcSlideDown 0.42s cubic-bezier(0.22, 1, 0.36, 1);
-    }
-
-    @keyframes orcFadeUp {
-        from { opacity: 0; transform: translateY(10px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes orcFadeIn {
-        from { opacity: 0; transform: translateY(-6px); }
-        to { opacity: 1; transform: translateY(0); }
-    }
-    @keyframes orcSlideDown {
-        from { opacity: 0; transform: translateY(-16px); }
-        to { opacity: 1; transform: translateY(0); }
+    @keyframes orcFade {
+        from { opacity: 0; }
+        to { opacity: 1; }
     }
 
     div[data-testid="stMetric"] {
@@ -95,11 +71,10 @@ APP_CSS = """
         border-radius: 11px !important;
         border: 2px solid var(--orc-border) !important;
         font-weight: 650 !important;
-        transition: all 0.22s ease !important;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
     }
     .stButton > button:hover {
         border-color: var(--orc-accent) !important;
-        transform: translateY(-1px);
         box-shadow: 0 6px 16px rgba(10, 51, 88, 0.12);
     }
     .stButton > button[kind="primary"],
@@ -120,7 +95,6 @@ APP_CSS = """
         border: 2px solid var(--orc-border-strong) !important;
         background: #fbfdff !important;
         color: var(--orc-text) !important;
-        box-shadow: inset 0 1px 2px rgba(16, 40, 61, 0.06);
     }
     div[data-baseweb="select"] > div:focus-within,
     .stTextInput input:focus, .stNumberInput input:focus, .stTextArea textarea:focus {
@@ -137,7 +111,6 @@ APP_CSS = """
         margin: 0.7rem 0 1rem 0;
         font-weight: 700;
         box-shadow: 0 8px 20px rgba(10, 51, 88, 0.18);
-        animation: orcFadeUp 0.35s ease-out;
     }
     .menu-btn button {
         height: 3.2rem;

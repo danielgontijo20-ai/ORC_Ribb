@@ -31,22 +31,21 @@ def render_menu(conn) -> None:
         st.markdown("</div>", unsafe_allow_html=True)
 
     with right:
-        st.markdown('<div class="orc-card">', unsafe_allow_html=True)
-        logo = cfg.get("logo_master") or ""
-        if logo and Path(logo).exists():
-            st.image(logo, use_container_width=True)
-        else:
-            st.markdown(
-                """
-                #### Logo Master
-                Faça upload em **Cadastros → Valores Nativos**.
+        with st.container(border=True):
+            logo = cfg.get("logo_master") or ""
+            if logo and Path(logo).exists():
+                st.image(logo, use_container_width=True)
+            else:
+                st.markdown(
+                    """
+                    #### Logo Master
+                    Faça upload em **Cadastros → Valores Nativos**.
 
-                Tamanho sugerido: **1200 × 330 px** (proporção ~8,0 × 2,2).
-                """
-            )
-            empresa = cfg.get("empresa_nome") or "Sua empresa"
-            st.info(
-                f"Cabeçalho da proposta usará: **{empresa}** "
-                f"| CNPJ: **{cfg.get('empresa_cnpj') or '(preencher)'}**"
-            )
-        st.markdown("</div>", unsafe_allow_html=True)
+                    Tamanho sugerido: **1200 × 330 px** (proporção ~8,0 × 2,2).
+                    """
+                )
+                empresa = cfg.get("empresa_nome") or "Sua empresa"
+                st.info(
+                    f"Cabeçalho da proposta usará: **{empresa}** "
+                    f"| CNPJ: **{cfg.get('empresa_cnpj') or '(preencher)'}**"
+                )
