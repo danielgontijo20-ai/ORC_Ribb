@@ -37,6 +37,8 @@ from src.services.descricao_item import (
 from src.services.orcamentos import salvar_orcamento
 from src.services.pdf_proposta import gerar_pdf_proposta
 from src.ui.formatters import brl, texto_ou_traco
+from src.ui.grid_select import dataframe_selecionavel
+from src.ui.scroll import aplicar_scroll_se_pedido, marcar_scroll_form
 from src.ui.state import (
     bump_form_seq,
     consumir_flash,
@@ -179,6 +181,7 @@ def _painel_esquerda(conn, cfg, proposta, *, readonly: bool = False) -> None:
                     bump_form_seq()
                     st.session_state.modo_form = "etiqueta"
                     st.session_state.memoria_calculo = None
+                    marcar_scroll_form()
                     st.rerun()
             with a2:
                 if st.button(
@@ -190,6 +193,7 @@ def _painel_esquerda(conn, cfg, proposta, *, readonly: bool = False) -> None:
                     bump_form_seq()
                     st.session_state.modo_form = "suprimentos"
                     st.session_state.memoria_calculo = None
+                    marcar_scroll_form()
                     st.rerun()
             with a3:
                 if st.button(
@@ -217,6 +221,7 @@ def _painel_esquerda(conn, cfg, proposta, *, readonly: bool = False) -> None:
                 _gerar_e_oferecer_pdf(conn, cfg, proposta)
 
     if not readonly and modo in ("etiqueta", "suprimentos"):
+        aplicar_scroll_se_pedido()
         if st.button(
             "↑ Recuar formulário de inserção",
             key="fechar_form_item",
@@ -825,32 +830,33 @@ def _render_dialogs(cfg) -> None:
 @st.dialog("Selecionar cliente")
 def _dialog_cliente() -> None:
     termo = st.text_input("Pesquisar por CNPJ ou Nome", key="dlg_cli_termo")
-    place = "(selecione um cliente)"
     # Nova conexão nesta thread do popup (corrige ProgrammingError)
     with connect() as conn:
         total = contar_clientes(conn, termo=termo or None)
         clientes = buscar_clientes(conn, termo=termo or None, limite=None)
-        st.caption(f"{total} cliente(s) encontrado(s) no banco")
+        st.caption(
+            f"{total} cliente(s) encontrado(s) no banco — clique na linha para selecionar"
+        )
         if not clientes:
             st.warning("Nenhum cliente encontrado.")
         else:
             df = pd.DataFrame([dict(c) for c in clientes])[
                 ["cnpj_cpf", "nome", "uf"]
             ].rename(columns={"cnpj_cpf": "CNPJ", "nome": "Nome", "uf": "UF"})
-            st.dataframe(df, use_container_width=True, hide_index=True, height=320)
-            opcoes = {f"{c['nome']} | {c['cnpj_cpf']}": c["id"] for c in clientes}
-            escolha = st.selectbox(
-                "Cliente",
-                [place] + list(opcoes.keys()),
-                index=0,
-                key="dlg_cli_escolha",
-            )
+            idx = dataframe_selecionavel(df, key="dlg_cli_grid", height=320)
+            if idx is not None:
+                st.success(
+                    f"Selecionado: **{clientes[idx]['nome']}** | {clientes[idx]['cnpj_cpf']}"
+                )
+            else:
+                st.info("Clique em uma linha da grade para selecionar o cliente.")
+
             if st.button("Confirmar", type="primary", key="dlg_cli_ok"):
-                if escolha == place:
-                    st.error("Selecione um cliente na lista.")
+                if idx is None:
+                    st.error("Clique em um cliente na grade antes de confirmar.")
                 else:
                     with connect() as conn2:
-                        cli = obter_cliente(conn2, opcoes[escolha])
+                        cli = obter_cliente(conn2, int(clientes[idx]["id"]))
                     st.session_state.proposta["cliente"] = dict(cli)
                     st.session_state.show_dialog = None
                     flash_sucesso(f"Cliente selecionado: {cli['nome']}")

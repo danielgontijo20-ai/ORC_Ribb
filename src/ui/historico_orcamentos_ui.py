@@ -12,6 +12,7 @@ from src.services.orcamentos import (
     orcamento_para_proposta,
 )
 from src.ui.formatters import brl
+from src.ui.grid_select import dataframe_selecionavel
 from src.ui.state import bump_form_seq, flash_sucesso, ir_para, voltar
 
 
@@ -72,37 +73,37 @@ def render_historico_orcamentos(conn) -> None:
                 for r in lista
             ]
         )
-        st.dataframe(df, use_container_width=True, hide_index=True, height=360)
-
-        opcoes = {
-            f"{r.get('numero') or 's/n'} — {r.get('cliente_nome') or '-'} (#{r['id']})": r["id"]
-            for r in lista
-        }
-        escolha = st.selectbox(
-            "Selecione um orçamento",
-            ["(selecione)"] + list(opcoes.keys()),
-            key="hist_orc_escolha",
-        )
+        st.caption("Clique na linha da grade para selecionar o orçamento.")
+        idx = dataframe_selecionavel(df, key="hist_orc_grid", height=360)
+        orc_id = None
+        if idx is not None:
+            orc_id = int(lista[idx]["id"])
+            st.success(
+                f"Selecionado: **{lista[idx].get('numero') or '-'}** — "
+                f"{lista[idx].get('cliente_nome') or '-'}"
+            )
+        else:
+            st.info("Clique em uma linha para selecionar.")
 
         c1, c2, c3 = st.columns(3)
         with c1:
             if st.button("Abrir (somente leitura)", type="primary", use_container_width=True):
-                if escolha == "(selecione)":
-                    st.error("Selecione um orçamento.")
+                if orc_id is None:
+                    st.error("Selecione um orçamento na grade.")
                 else:
-                    _abrir_readonly(conn, opcoes[escolha])
+                    _abrir_readonly(conn, orc_id)
         with c2:
             if st.button("Clonar como novo orçamento", use_container_width=True):
-                if escolha == "(selecione)":
-                    st.error("Selecione um orçamento.")
+                if orc_id is None:
+                    st.error("Selecione um orçamento na grade.")
                 else:
-                    _clonar(conn, opcoes[escolha])
+                    _clonar(conn, orc_id)
         with c3:
             if st.button("Ver detalhes aqui", use_container_width=True):
-                if escolha == "(selecione)":
-                    st.error("Selecione um orçamento.")
+                if orc_id is None:
+                    st.error("Selecione um orçamento na grade.")
                 else:
-                    st.session_state.hist_orc_detalhe_id = opcoes[escolha]
+                    st.session_state.hist_orc_detalhe_id = orc_id
                     st.rerun()
 
     detalhe_id = st.session_state.get("hist_orc_detalhe_id")

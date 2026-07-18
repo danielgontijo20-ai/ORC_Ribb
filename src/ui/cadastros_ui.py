@@ -26,6 +26,7 @@ from src.services.cadastros import (
 )
 from src.services.clientes import buscar_clientes, contar_clientes
 from src.services.configuracoes import carregar_config, salvar_config
+from src.ui.grid_select import dataframe_selecionavel
 from src.ui.state import consumir_flash, flash_sucesso, voltar
 
 
@@ -39,6 +40,9 @@ def _cad_seq() -> int:
 def _bump_cad_seq() -> None:
     """Invalida select + campos (novas keys = formulário vazio em (novo))."""
     st.session_state.cad_form_seq = _cad_seq() + 1
+    for k in list(st.session_state.keys()):
+        if isinstance(k, str) and k.endswith("_grid_last"):
+            del st.session_state[k]
 
 
 def _sel_key(base: str) -> str:
@@ -122,22 +126,30 @@ def _hub() -> None:
                 st.rerun()
 
 
+def _sync_select_from_grid(sel_base: str, label: str) -> None:
+    """Ao clicar na grade, atualiza o select e recarrega os campos uma vez."""
+    if st.session_state.get(f"_{sel_base}_grid_last") == label:
+        return
+    st.session_state[f"_{sel_base}_grid_last"] = label
+    _bump_cad_seq()
+    st.session_state[_sel_key(sel_base)] = label
+    st.rerun()
+
+
 def _clientes(conn) -> None:
     st.subheader("Clientes")
     termo = st.text_input("Pesquisar cliente")
     total = contar_clientes(conn, termo=termo or None)
     rows = buscar_clientes(conn, termo=termo or None, limite=None)
-    st.caption(f"{total} cliente(s) encontrado(s)")
+    st.caption(f"{total} cliente(s) encontrado(s) — clique na linha para editar")
+    ids = {f"{r['id']} - {r['nome']}": r["id"] for r in rows}
     if rows:
-        st.dataframe(
-            pd.DataFrame([dict(r) for r in rows]),
-            use_container_width=True,
-            hide_index=True,
-            height=320,
-        )
+        df = pd.DataFrame([dict(r) for r in rows])
+        idx = dataframe_selecionavel(df, key="cli_grid", height=320)
+        if idx is not None:
+            _sync_select_from_grid("cli_sel", f"{rows[idx]['id']} - {rows[idx]['nome']}")
 
     st.markdown("#### Inserir / editar")
-    ids = {f"{r['id']} - {r['nome']}": r["id"] for r in rows}
     modo = st.selectbox(
         "Registro",
         ["(novo)"] + list(ids.keys()),
@@ -188,10 +200,15 @@ def _materias(conn) -> None:
         "Campo **nome de exibição mp ORC** é usado na descrição automática do item na proposta."
     )
     rows = listar_materias_primas(conn)
-    if rows:
-        st.dataframe(pd.DataFrame([dict(r) for r in rows]), use_container_width=True, hide_index=True)
-
+    st.caption("Clique na linha da grade para editar o registro.")
     ids = {f"{r['id']} - {r['nome']}": r["id"] for r in rows}
+    if rows:
+        idx = dataframe_selecionavel(
+            pd.DataFrame([dict(r) for r in rows]), key="mp_grid", height=280
+        )
+        if idx is not None:
+            _sync_select_from_grid("mp_sel", f"{rows[idx]['id']} - {rows[idx]['nome']}")
+
     modo = st.selectbox(
         "Registro",
         ["(novo)"] + list(ids.keys()),
@@ -258,9 +275,14 @@ def _tubetes(conn) -> None:
     st.subheader("Tubetes")
     st.info("Campo **nome de exibição tubete ORC** entra na descrição automática.")
     rows = listar_tubetes(conn)
-    if rows:
-        st.dataframe(pd.DataFrame([dict(r) for r in rows]), use_container_width=True, hide_index=True)
+    st.caption("Clique na linha da grade para editar o registro.")
     ids = {f"{r['id']} - {r['nome']}": r["id"] for r in rows}
+    if rows:
+        idx = dataframe_selecionavel(
+            pd.DataFrame([dict(r) for r in rows]), key="tub_grid", height=280
+        )
+        if idx is not None:
+            _sync_select_from_grid("tub_sel", f"{rows[idx]['id']} - {rows[idx]['nome']}")
     modo = st.selectbox(
         "Registro",
         ["(novo)"] + list(ids.keys()),
@@ -315,9 +337,14 @@ def _tubetes(conn) -> None:
 def _caixas(conn) -> None:
     st.subheader("Caixas")
     rows = listar_caixas(conn)
-    if rows:
-        st.dataframe(pd.DataFrame([dict(r) for r in rows]), use_container_width=True, hide_index=True)
+    st.caption("Clique na linha da grade para editar o registro.")
     ids = {f"{r['id']} - {r['nome']}": r["id"] for r in rows}
+    if rows:
+        idx = dataframe_selecionavel(
+            pd.DataFrame([dict(r) for r in rows]), key="cx_grid", height=280
+        )
+        if idx is not None:
+            _sync_select_from_grid("cx_sel", f"{rows[idx]['id']} - {rows[idx]['nome']}")
     modo = st.selectbox(
         "Registro",
         ["(novo)"] + list(ids.keys()),
@@ -360,9 +387,16 @@ def _facas(conn) -> None:
         "A área é recalculada automaticamente."
     )
     rows = listar_facas(conn)
-    if rows:
-        st.dataframe(pd.DataFrame([dict(r) for r in rows]), use_container_width=True, hide_index=True)
+    st.caption("Clique na linha da grade para editar o registro.")
     ids = {f"{r['id']} - {r['tipo_faca']}": r["id"] for r in rows}
+    if rows:
+        idx = dataframe_selecionavel(
+            pd.DataFrame([dict(r) for r in rows]), key="faca_grid", height=280
+        )
+        if idx is not None:
+            _sync_select_from_grid(
+                "faca_sel", f"{rows[idx]['id']} - {rows[idx]['tipo_faca']}"
+            )
     modo = st.selectbox(
         "Registro",
         ["(novo)"] + list(ids.keys()),

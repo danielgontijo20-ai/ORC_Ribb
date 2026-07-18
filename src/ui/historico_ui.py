@@ -8,6 +8,7 @@ import streamlit as st
 from src.services.clientes import buscar_clientes, contar_clientes
 from src.services.historico_nf import listar_vendas_por_cliente
 from src.ui.formatters import brl, texto_ou_traco
+from src.ui.grid_select import dataframe_selecionavel
 from src.ui.state import voltar
 
 
@@ -24,7 +25,7 @@ def render_historico(conn) -> None:
             voltar()
 
     st.write(
-        "Pesquise um cliente e clique em **Buscar vendas**. "
+        "Pesquise um cliente, **clique na linha** da grade e depois em **Buscar vendas**. "
         "A tela não carrega o histórico automaticamente."
     )
 
@@ -34,34 +35,32 @@ def render_historico(conn) -> None:
             placeholder="Digite parte do nome ou CNPJ",
             key="hist_termo",
         )
-        c1, c2 = st.columns([3, 1])
-        with c1:
-            # Lista de clientes só para ajudar a escolher — sem carregar vendas ainda
-            if termo and termo.strip():
-                total = contar_clientes(conn, termo=termo.strip())
-                clientes = buscar_clientes(conn, termo=termo.strip(), limite=None)
-                st.caption(f"{total} cliente(s) encontrado(s) na busca")
-                opcoes = {
-                    f"{c['nome']} | {c['cnpj_cpf']}": c["id"] for c in clientes
-                }
-                if opcoes:
-                    escolha = st.selectbox(
-                        "Selecione o cliente",
-                        list(opcoes.keys()),
-                        key="hist_cliente_sel",
+        cliente_id = None
+        escolha_label = None
+
+        if termo and termo.strip():
+            total = contar_clientes(conn, termo=termo.strip())
+            clientes = buscar_clientes(conn, termo=termo.strip(), limite=None)
+            st.caption(f"{total} cliente(s) encontrado(s) — clique na linha para selecionar")
+            if clientes:
+                df = pd.DataFrame([dict(c) for c in clientes])[
+                    ["cnpj_cpf", "nome", "uf"]
+                ].rename(columns={"cnpj_cpf": "CNPJ", "nome": "Nome", "uf": "UF"})
+                idx = dataframe_selecionavel(df, key="hist_cli_grid", height=280)
+                if idx is not None:
+                    cliente_id = int(clientes[idx]["id"])
+                    escolha_label = (
+                        f"{clientes[idx]['nome']} | {clientes[idx]['cnpj_cpf']}"
                     )
-                    cliente_id = opcoes[escolha]
+                    st.success(f"Selecionado: **{escolha_label}**")
                 else:
-                    escolha = None
-                    cliente_id = None
-                    st.warning("Nenhum cliente encontrado para este termo.")
+                    st.info("Clique em um cliente na grade.")
             else:
-                cliente_id = None
-                st.info("Digite um termo de pesquisa para localizar o cliente.")
-        with c2:
-            st.write("")
-            st.write("")
-            buscar = st.button("Buscar vendas", type="primary", use_container_width=True)
+                st.warning("Nenhum cliente encontrado para este termo.")
+        else:
+            st.info("Digite um termo de pesquisa para localizar o cliente.")
+
+        buscar = st.button("Buscar vendas", type="primary", use_container_width=True)
 
         if buscar:
             if not (termo and termo.strip()):
@@ -69,17 +68,17 @@ def render_historico(conn) -> None:
                 st.error("Informe um termo de pesquisa antes de buscar.")
             elif not cliente_id:
                 st.session_state.hist_resultado = None
-                st.error("Selecione um cliente na lista.")
+                st.error("Clique em um cliente na grade antes de buscar.")
             else:
-                st.session_state.hist_resultado = listar_vendas_por_cliente(
-                    conn,
-                    cliente_id=cliente_id,
-                    termo_cliente=None,
-                    limite_notas=200,
-                )
-                st.session_state.hist_resultado_label = escolha
+                with st.spinner("Buscando vendas..."):
+                    st.session_state.hist_resultado = listar_vendas_por_cliente(
+                        conn,
+                        cliente_id=cliente_id,
+                        termo_cliente=None,
+                        limite_notas=200,
+                    )
+                st.session_state.hist_resultado_label = escolha_label
 
-    # Só mostra vendas depois de uma busca explícita
     notas = st.session_state.get("hist_resultado")
     if notas is None:
         st.caption("Nenhuma busca realizada ainda.")

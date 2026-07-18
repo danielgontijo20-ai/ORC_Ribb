@@ -44,12 +44,15 @@ def salvar_orcamento(
     agora = _now()
     cols = _cols(conn, "orcamentos")
 
-    # tipo legado (bancos antigos exigiam NOT NULL)
-    tipo_legado = "misto"
+    # Coluna legada `tipo` em bancos antigos: CHECK só aceita etiqueta|suprimentos
+    # (nunca "misto" — orçamentos mistos usam o tipo do 1º item).
     itens = proposta.get("itens") or []
-    tipos = {i.get("tipo_item") for i in itens if i.get("tipo_item")}
-    if len(tipos) == 1:
-        tipo_legado = next(iter(tipos))
+    tipos_validos = [
+        i.get("tipo_item")
+        for i in itens
+        if i.get("tipo_item") in ("etiqueta", "suprimentos")
+    ]
+    tipo_legado = tipos_validos[0] if tipos_validos else "etiqueta"
 
     orc_id = proposta.get("id")
     if orc_id:
