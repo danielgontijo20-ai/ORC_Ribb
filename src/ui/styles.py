@@ -1,4 +1,4 @@
-"""Tema visual do ORC_Ribb — contraste reforçado + animações de avanço/recuo."""
+"""Tema visual do ORC_Ribb — contraste reforçado + animações."""
 
 APP_CSS = """
 <style>
@@ -14,7 +14,6 @@ APP_CSS = """
         --orc-border-strong: #6F8AA3;
         --orc-text: #10283D;
         --orc-muted: #4E667A;
-        --orc-active: #0D3B66;
         --orc-active-glow: rgba(31, 158, 138, 0.35);
     }
 
@@ -36,21 +35,6 @@ APP_CSS = """
     h1, h2, h3, h4, .orc-title {
         color: var(--orc-primary) !important;
     }
-
-    .orc-card {
-        background: var(--orc-card);
-        border: 2px solid var(--orc-border);
-        border-radius: 14px;
-        padding: 1rem 1.1rem;
-        box-shadow: 0 12px 30px rgba(10, 51, 88, 0.10);
-        margin-bottom: 0.85rem;
-        animation: orcFadeUp 0.35s ease-out;
-    }
-    .orc-card-strong {
-        border-color: var(--orc-border-strong);
-        box-shadow: 0 14px 34px rgba(10, 51, 88, 0.14);
-        background: linear-gradient(180deg, #ffffff 0%, #f7fbfd 100%);
-    }
     .orc-title {
         font-family: "Segoe UI", "Helvetica Neue", sans-serif;
         font-weight: 750;
@@ -59,25 +43,31 @@ APP_CSS = """
         letter-spacing: -0.01em;
     }
     .orc-sub { color: var(--orc-muted); font-size: 0.95rem; margin-bottom: 1rem; }
+    .orc-top-spacer { height: 0.35rem; }
 
-    .proposta-box {
-        background: linear-gradient(180deg, #ffffff 0%, #f5fafb 100%);
-        border: 2px solid var(--orc-border-strong);
-        border-radius: 14px;
-        padding: 1rem;
-        min-height: 70vh;
-        box-shadow: 0 14px 34px rgba(10, 51, 88, 0.12);
+    /* Containers com borda do Streamlit = nossos cards */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        background: linear-gradient(180deg, #ffffff 0%, #f7fbfd 100%) !important;
+        border: 2px solid var(--orc-border-strong) !important;
+        border-radius: 14px !important;
+        box-shadow: 0 12px 30px rgba(10, 51, 88, 0.10) !important;
+        padding: 0.35rem 0.2rem !important;
+        margin-bottom: 0.75rem !important;
+        animation: orcFadeUp 0.35s ease-out;
+    }
+
+    /* Coluna da prévia: cola no topo e acompanha a seleção de cliente */
+    div[data-testid="stHorizontalBlock"] > div:nth-child(2) div[data-testid="stVerticalBlockBorderWrapper"] {
         position: sticky;
-        top: 1.2rem;
+        top: 1.1rem;
+        z-index: 5;
+        border-color: var(--orc-primary) !important;
+        box-shadow: 0 14px 34px rgba(10, 51, 88, 0.14) !important;
         animation: orcFadeIn 0.4s ease-out;
     }
 
     .orc-slide-panel {
         animation: orcSlideDown 0.42s cubic-bezier(0.22, 1, 0.36, 1);
-        transform-origin: top center;
-    }
-    .orc-slide-out-hint {
-        animation: orcPulse 1.2s ease-in-out 1;
     }
 
     @keyframes orcFadeUp {
@@ -89,12 +79,8 @@ APP_CSS = """
         to { opacity: 1; transform: translateY(0); }
     }
     @keyframes orcSlideDown {
-        from { opacity: 0; transform: translateY(-18px) scaleY(0.96); max-height: 0; }
-        to { opacity: 1; transform: translateY(0) scaleY(1); max-height: 2000px; }
-    }
-    @keyframes orcPulse {
-        0%, 100% { box-shadow: 0 0 0 0 rgba(23, 143, 124, 0); }
-        50% { box-shadow: 0 0 0 6px var(--orc-active-glow); }
+        from { opacity: 0; transform: translateY(-16px); }
+        to { opacity: 1; transform: translateY(0); }
     }
 
     div[data-testid="stMetric"] {
@@ -105,7 +91,6 @@ APP_CSS = """
     }
     div[data-testid="stMetric"] label { color: var(--orc-muted) !important; }
 
-    /* Botões */
     .stButton > button {
         border-radius: 11px !important;
         border: 2px solid var(--orc-border) !important;
@@ -122,15 +107,7 @@ APP_CSS = """
         background: linear-gradient(135deg, var(--orc-primary) 0%, var(--orc-primary-2) 100%) !important;
         border: 2px solid var(--orc-primary) !important;
         color: white !important;
-        box-shadow: 0 6px 18px rgba(10, 51, 88, 0.22);
-    }
-    /* Botão ativo em evidência */
-    .stButton > button[kind="primary"]:focus,
-    .stButton > button[data-testid="baseButton-primary"]:focus,
-    .btn-active-wrap .stButton > button {
-        outline: 3px solid var(--orc-accent) !important;
-        box-shadow: 0 0 0 4px var(--orc-active-glow), 0 8px 20px rgba(10, 51, 88, 0.25) !important;
-        transform: translateY(-1px);
+        box-shadow: 0 6px 18px rgba(10, 51, 88, 0.22), 0 0 0 3px var(--orc-active-glow);
     }
 
     .stSelectbox label, .stNumberInput label, .stTextInput label, .stTextArea label {
@@ -152,7 +129,6 @@ APP_CSS = """
     }
 
     .stSuccess { border-left: 5px solid var(--orc-accent); }
-    .orc-top-spacer { height: 0.35rem; }
     .orc-total-bar {
         background: linear-gradient(135deg, var(--orc-primary) 0%, var(--orc-accent) 120%);
         color: #fff;

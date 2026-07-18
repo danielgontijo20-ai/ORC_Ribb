@@ -50,6 +50,19 @@ def _preparar_nova_insercao(select_key: str) -> None:
     """Após salvar: limpa formulário e deixa pronto para nova inserção."""
     _bump_cad_seq()
     st.session_state[select_key] = "(novo)"
+    # Remove valores antigos de widgets deste cadastro
+    prefix_map = {
+        "cli_sel": "cli_",
+        "mp_sel": "mp_",
+        "tub_sel": "tub_",
+        "cx_sel": "cx_",
+        "faca_sel": "faca_",
+    }
+    prefix = prefix_map.get(select_key, "")
+    if prefix:
+        for key in list(st.session_state.keys()):
+            if isinstance(key, str) and key.startswith(prefix) and key != select_key:
+                del st.session_state[key]
 
 
 def render_cadastros(conn) -> None:

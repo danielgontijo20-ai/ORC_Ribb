@@ -109,92 +109,90 @@ def render_novo_orcamento(conn) -> None:
 def _painel_esquerda(conn, cfg, proposta) -> None:
     modo = st.session_state.get("modo_form")
 
-    st.markdown('<div class="orc-card orc-card-strong">', unsafe_allow_html=True)
-    st.markdown("#### Selecionar cliente")
-    b1, b2, b3 = st.columns(3)
-    with b1:
-        if st.button(
-            "Selecionar cliente",
-            use_container_width=True,
-            type="primary" if st.session_state.get("show_dialog") == "cliente" else "secondary",
-            key="btn_sel_cli",
-        ):
-            st.session_state.show_dialog = "cliente"
-            st.rerun()
-    with b2:
-        if st.button(
-            "Cliente avulso",
-            use_container_width=True,
-            type="primary" if st.session_state.get("show_dialog") == "cliente_avulso" else "secondary",
-            key="btn_cli_avulso",
-        ):
-            st.session_state.show_dialog = "cliente_avulso"
-            st.rerun()
-    with b3:
-        if st.button("Limpar cliente", use_container_width=True, key="btn_limpar_cli"):
-            proposta["cliente"] = None
-            st.rerun()
+    with st.container(border=True):
+        st.markdown("#### Selecionar cliente")
+        b1, b2, b3 = st.columns(3)
+        with b1:
+            if st.button(
+                "Selecionar cliente",
+                use_container_width=True,
+                type="primary" if st.session_state.get("show_dialog") == "cliente" else "secondary",
+                key="btn_sel_cli",
+            ):
+                st.session_state.show_dialog = "cliente"
+                st.rerun()
+        with b2:
+            if st.button(
+                "Cliente avulso",
+                use_container_width=True,
+                type="primary" if st.session_state.get("show_dialog") == "cliente_avulso" else "secondary",
+                key="btn_cli_avulso",
+            ):
+                st.session_state.show_dialog = "cliente_avulso"
+                st.rerun()
+        with b3:
+            if st.button("Limpar cliente", use_container_width=True, key="btn_limpar_cli"):
+                proposta["cliente"] = None
+                st.rerun()
 
-    cliente = proposta.get("cliente")
-    if cliente:
-        st.success(
-            f"{cliente.get('nome')} | {texto_ou_traco(cliente.get('cnpj_cpf'))}"
+        cliente = proposta.get("cliente")
+        if cliente:
+            st.success(
+                f"{cliente.get('nome')} | {texto_ou_traco(cliente.get('cnpj_cpf'))}"
+            )
+        else:
+            st.warning("Nenhum cliente selecionado.")
+
+    with st.container(border=True):
+        st.markdown("#### Formação de orçamento")
+        a1, a2, a3 = st.columns(3)
+        with a1:
+            if st.button(
+                "Inserir nova etiqueta",
+                use_container_width=True,
+                type="primary" if modo == "etiqueta" else "secondary",
+                key="btn_nova_etq",
+            ):
+                bump_form_seq()
+                st.session_state.modo_form = "etiqueta"
+                st.session_state.memoria_calculo = None
+                st.rerun()
+        with a2:
+            if st.button(
+                "Inserir novo suprimento",
+                use_container_width=True,
+                type="primary" if modo == "suprimentos" else "secondary",
+                key="btn_novo_sup",
+            ):
+                bump_form_seq()
+                st.session_state.modo_form = "suprimentos"
+                st.session_state.memoria_calculo = None
+                st.rerun()
+        with a3:
+            if st.button(
+                "Condições gerais",
+                use_container_width=True,
+                type="primary" if st.session_state.get("show_dialog") == "condicoes" else "secondary",
+                key="btn_condicoes",
+            ):
+                st.session_state.show_dialog = "condicoes"
+                st.rerun()
+
+        valor_total, lucro_total, frete_total = totais_proposta()
+        st.markdown(
+            f'<div class="orc-total-bar">Valor total da proposta: {brl(valor_total)}</div>',
+            unsafe_allow_html=True,
         )
-    else:
-        st.warning("Nenhum cliente selecionado.")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown('<div class="orc-card orc-card-strong">', unsafe_allow_html=True)
-    st.markdown("#### Formação de orçamento")
-    a1, a2, a3 = st.columns(3)
-    with a1:
-        if st.button(
-            "Inserir nova etiqueta",
-            use_container_width=True,
-            type="primary" if modo == "etiqueta" else "secondary",
-            key="btn_nova_etq",
-        ):
-            bump_form_seq()
-            st.session_state.modo_form = "etiqueta"
-            st.session_state.memoria_calculo = None
-            st.rerun()
-    with a2:
-        if st.button(
-            "Inserir novo suprimento",
-            use_container_width=True,
-            type="primary" if modo == "suprimentos" else "secondary",
-            key="btn_novo_sup",
-        ):
-            bump_form_seq()
-            st.session_state.modo_form = "suprimentos"
-            st.session_state.memoria_calculo = None
-            st.rerun()
-    with a3:
-        if st.button(
-            "Condições gerais",
-            use_container_width=True,
-            type="primary" if st.session_state.get("show_dialog") == "condicoes" else "secondary",
-            key="btn_condicoes",
-        ):
-            st.session_state.show_dialog = "condicoes"
-            st.rerun()
-
-    valor_total, lucro_total, frete_total = totais_proposta()
-    st.markdown(
-        f'<div class="orc-total-bar">Valor total da proposta: {brl(valor_total)}</div>',
-        unsafe_allow_html=True,
-    )
-    k1, k2, k3 = st.columns(3)
-    k1.metric("Lucro total", brl(lucro_total))
-    k2.metric("Frete total incluso", brl(frete_total))
-    with k3:
-        st.write("")
-        if st.button("Gerar PDF da proposta", use_container_width=True, type="primary"):
-            _gerar_e_oferecer_pdf(conn, cfg, proposta)
-    st.markdown("</div>", unsafe_allow_html=True)
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Lucro total", brl(lucro_total))
+        k2.metric("Frete total incluso", brl(frete_total))
+        with k3:
+            st.write("")
+            if st.button("Gerar PDF da proposta", use_container_width=True, type="primary"):
+                _gerar_e_oferecer_pdf(conn, cfg, proposta)
 
     if modo in ("etiqueta", "suprimentos"):
-        st.markdown('<div class="orc-slide-panel">', unsafe_allow_html=True)
+        st.markdown('<div class="orc-slide-panel"></div>', unsafe_allow_html=True)
         if st.button(
             "↑ Recuar formulário de inserção",
             key="fechar_form_item",
@@ -206,22 +204,27 @@ def _painel_esquerda(conn, cfg, proposta) -> None:
             _form_etiqueta(conn, cfg, proposta)
         else:
             _form_suprimentos(conn, cfg, proposta)
-        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _form_etiqueta(conn, cfg, proposta) -> None:
-    st.markdown('<div class="orc-card orc-card-strong orc-slide-panel">', unsafe_allow_html=True)
-    st.markdown("#### Inserir etiqueta")
-    st.caption("Campos nativos já vêm preenchidos. Demais campos começam em (selecione)/(inserir).")
+    with st.container(border=True):
+        st.markdown("#### Inserir etiqueta")
+        st.caption(
+            "Campos nativos já vêm preenchidos. Demais campos começam em (selecione)/(inserir)."
+        )
 
-    facas = listar_facas(conn)
-    materias = listar_materias_primas(conn)
-    tubetes = listar_tubetes(conn)
-    caixas = listar_caixas(conn)
-    if not all([facas, materias, tubetes, caixas]):
-        st.error("Cadastros incompletos. Importe a planilha / cadastre os itens.")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
+        facas = listar_facas(conn)
+        materias = listar_materias_primas(conn)
+        tubetes = listar_tubetes(conn)
+        caixas = listar_caixas(conn)
+        if not all([facas, materias, tubetes, caixas]):
+            st.error("Cadastros incompletos. Importe a planilha / cadastre os itens.")
+            return
+
+        _form_etiqueta_body(conn, cfg, proposta, facas, materias, tubetes, caixas)
+
+
+def _form_etiqueta_body(conn, cfg, proposta, facas, materias, tubetes, caixas) -> None:
 
     caixa_nativa = next(
         (c["nome"] for c in caixas if "tipo 1" in c["nome"].lower()),
@@ -320,7 +323,6 @@ def _form_etiqueta(conn, cfg, proposta) -> None:
 
     if faltando:
         st.info("Preencha/selecione: " + ", ".join(faltando))
-        st.markdown("</div>", unsafe_allow_html=True)
         return
 
     faca = obter_faca_por_tipo(conn, tipo_faca)
@@ -411,14 +413,18 @@ def _form_etiqueta(conn, cfg, proposta) -> None:
                 st.session_state.modo_form = None
                 st.success("Item inserido. Formulário limpo para o próximo item.")
                 st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _form_suprimentos(conn, cfg, proposta) -> None:
-    st.markdown('<div class="orc-card orc-card-strong orc-slide-panel">', unsafe_allow_html=True)
-    st.markdown("#### Inserir suprimento")
-    st.caption("Campos nativos já vêm preenchidos. Demais campos começam em (inserir)/(selecione).")
+    with st.container(border=True):
+        st.markdown("#### Inserir suprimento")
+        st.caption(
+            "Campos nativos já vêm preenchidos. Demais campos começam em (inserir)/(selecione)."
+        )
+        _form_suprimentos_body(conn, cfg, proposta)
 
+
+def _form_suprimentos_body(conn, cfg, proposta) -> None:
     c1, c2 = st.columns(2)
     with c1:
         descricao_in = st.text_input(
@@ -485,7 +491,6 @@ def _form_suprimentos(conn, cfg, proposta) -> None:
 
     if faltando:
         st.info("Preencha/selecione: " + ", ".join(faltando))
-        st.markdown("</div>", unsafe_allow_html=True)
         return
 
     difal = difal_sel == "SIM"
@@ -554,7 +559,6 @@ def _form_suprimentos(conn, cfg, proposta) -> None:
                 st.session_state.modo_form = None
                 st.success("Item inserido. Formulário limpo para o próximo item.")
                 st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _garantir_numero(conn, proposta) -> None:
@@ -563,100 +567,99 @@ def _garantir_numero(conn, proposta) -> None:
 
 
 def _painel_proposta(conn, cfg, proposta) -> None:
-    st.markdown('<div class="proposta-box">', unsafe_allow_html=True)
-    st.markdown("#### Prévia da proposta")
-    st.caption("Alinhada ao topo • atualiza automaticamente")
+    # st.container envolve de verdade o conteúdo (HTML solto criava caixa vazia no topo)
+    with st.container(border=True):
+        st.markdown("#### Prévia da proposta")
+        st.caption("Inicia no topo • alinhada à seleção de cliente")
 
-    logo = cfg.get("logo_cabecalho") or ""
-    if logo and Path(logo).exists():
-        st.image(logo, width=120)
+        logo = cfg.get("logo_cabecalho") or ""
+        if logo and Path(logo).exists():
+            st.image(logo, width=120)
 
-    st.markdown(
-        f"**{cfg.get('empresa_nome') or '(Nome da empresa — preencher em Valores Nativos)'}**  \n"
-        f"CNPJ: {cfg.get('empresa_cnpj') or '-'}  \n"
-        f"Tel: {cfg.get('empresa_telefone') or '-'}  \n"
-        f"E-mail: {cfg.get('empresa_email') or '-'}"
-    )
-    st.divider()
-
-    cliente = proposta.get("cliente") or {}
-    st.markdown(
-        f"**Número do Orçamento:** {proposta.get('numero') or '(será gerado ao inserir o 1º item)'}  \n"
-        f"**Nome do Cliente:** {cliente.get('nome') or '-'}  \n"
-        f"**CNPJ do Cliente:** {cliente.get('cnpj_cpf') or '-'}  \n"
-        f"**Aos cuidados do(a) Sr.(a):** {proposta.get('solicitante') or '-'}"
-    )
-
-    itens = proposta.get("itens") or []
-    valor_total, lucro_total, frete_total = totais_proposta()
-    st.markdown(
-        f'<div class="orc-total-bar">'
-        f"Valor total da proposta: {brl(valor_total)}<br/>"
-        f"<span style='font-weight:500;font-size:0.92rem'>"
-        f"Lucro: {brl(lucro_total)} • Frete incluso: {brl(frete_total)}"
-        f"</span></div>",
-        unsafe_allow_html=True,
-    )
-
-    if itens:
-        df = pd.DataFrame(
-            [
-                {
-                    "N° Item": f"{i+1:02d}",
-                    "Descrição": it["descricao"],
-                    "Und": it.get("unidade"),
-                    "Qtd": it.get("quantidade"),
-                    "Preço Unit.": it.get("preco_unitario"),
-                    "Valor total": it.get("valor_venda_total"),
-                }
-                for i, it in enumerate(itens)
-            ]
+        st.markdown(
+            f"**{cfg.get('empresa_nome') or '(Nome da empresa — preencher em Valores Nativos)'}**  \n"
+            f"CNPJ: {cfg.get('empresa_cnpj') or '-'}  \n"
+            f"Tel: {cfg.get('empresa_telefone') or '-'}  \n"
+            f"E-mail: {cfg.get('empresa_email') or '-'}"
         )
-        st.dataframe(df, use_container_width=True, hide_index=True)
-        rem = st.number_input(
-            "Remover item (nº da linha)",
-            min_value=0,
-            max_value=len(itens),
-            value=0,
-            step=1,
+        st.divider()
+
+        cliente = proposta.get("cliente") or {}
+        st.markdown(
+            f"**Número do Orçamento:** {proposta.get('numero') or '(será gerado ao inserir o 1º item)'}  \n"
+            f"**Nome do Cliente:** {cliente.get('nome') or '-'}  \n"
+            f"**CNPJ do Cliente:** {cliente.get('cnpj_cpf') or '-'}  \n"
+            f"**Aos cuidados do(a) Sr.(a):** {proposta.get('solicitante') or '-'}"
         )
-        if st.button("Remover item") and rem > 0:
-            proposta["itens"].pop(rem - 1)
+
+        itens = proposta.get("itens") or []
+        valor_total, lucro_total, frete_total = totais_proposta()
+        st.markdown(
+            f'<div class="orc-total-bar">'
+            f"Valor total da proposta: {brl(valor_total)}<br/>"
+            f"<span style='font-weight:500;font-size:0.92rem'>"
+            f"Lucro: {brl(lucro_total)} • Frete incluso: {brl(frete_total)}"
+            f"</span></div>",
+            unsafe_allow_html=True,
+        )
+
+        if itens:
+            df = pd.DataFrame(
+                [
+                    {
+                        "N° Item": f"{i+1:02d}",
+                        "Descrição": it["descricao"],
+                        "Und": it.get("unidade"),
+                        "Qtd": it.get("quantidade"),
+                        "Preço Unit.": it.get("preco_unitario"),
+                        "Valor total": it.get("valor_venda_total"),
+                    }
+                    for i, it in enumerate(itens)
+                ]
+            )
+            st.dataframe(df, use_container_width=True, hide_index=True)
+            rem = st.number_input(
+                "Remover item (nº da linha)",
+                min_value=0,
+                max_value=len(itens),
+                value=0,
+                step=1,
+            )
+            if st.button("Remover item") and rem > 0:
+                proposta["itens"].pop(rem - 1)
+                st.rerun()
+        else:
+            st.info("Nenhum item na proposta ainda.")
+
+        frete_exibicao = proposta.get("frete_tipo", "CIF")
+        if frete_exibicao == "Taxa" and proposta.get("frete_taxa"):
+            frete_exibicao = f"Taxa: {proposta.get('frete_taxa')}"
+
+        st.markdown(
+            f"**Condições Gerais de Fornecimento**  \n"
+            f"Validade da Proposta: {proposta.get('validade_proposta')}  \n"
+            f"Prazo de pagamento: {proposta.get('prazo_pagamento')}  \n"
+            f"Prazo de entrega: {proposta.get('prazo_entrega')}  \n"
+            f"Frete: {frete_exibicao}  \n"
+            f"Impostos: {proposta.get('impostos')}"
+        )
+        st.markdown(
+            f"**Observações Adicionais:**  \n{proposta.get('informacoes_adicionais')}"
+        )
+        st.markdown(
+            f"{proposta.get('orcamentista_nome') or '-'}  \n"
+            f"{proposta.get('orcamentista_cargo') or '-'}  \n"
+            f"{proposta.get('orcamentista_telefone') or '-'}  \n"
+            f"{proposta.get('orcamentista_email') or '-'}"
+        )
+
+        logo_r = cfg.get("logo_rodape") or ""
+        if logo_r and Path(logo_r).exists():
+            st.image(logo_r, width=100)
+
+        if st.button("Limpar orçamento (começar do zero)", key="limpar_preview"):
+            reiniciar_proposta(conn)
             st.rerun()
-    else:
-        st.info("Nenhum item na proposta ainda.")
-
-    frete_exibicao = proposta.get("frete_tipo", "CIF")
-    if frete_exibicao == "Taxa" and proposta.get("frete_taxa"):
-        frete_exibicao = f"Taxa: {proposta.get('frete_taxa')}"
-
-    st.markdown(
-        f"**Condições Gerais de Fornecimento**  \n"
-        f"Validade da Proposta: {proposta.get('validade_proposta')}  \n"
-        f"Prazo de pagamento: {proposta.get('prazo_pagamento')}  \n"
-        f"Prazo de entrega: {proposta.get('prazo_entrega')}  \n"
-        f"Frete: {frete_exibicao}  \n"
-        f"Impostos: {proposta.get('impostos')}"
-    )
-    st.markdown(
-        f"**Observações Adicionais:**  \n{proposta.get('informacoes_adicionais')}"
-    )
-    st.markdown(
-        f"{proposta.get('orcamentista_nome') or '-'}  \n"
-        f"{proposta.get('orcamentista_cargo') or '-'}  \n"
-        f"{proposta.get('orcamentista_telefone') or '-'}  \n"
-        f"{proposta.get('orcamentista_email') or '-'}"
-    )
-
-    logo_r = cfg.get("logo_rodape") or ""
-    if logo_r and Path(logo_r).exists():
-        st.image(logo_r, width=100)
-
-    if st.button("Limpar orçamento (começar do zero)", key="limpar_preview"):
-        reiniciar_proposta(conn)
-        st.rerun()
-
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _gerar_e_oferecer_pdf(conn, cfg, proposta) -> None:

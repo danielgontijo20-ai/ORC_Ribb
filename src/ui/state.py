@@ -60,6 +60,11 @@ def ir_para(tela: str, *, cadastro_tela: str | None = None, modo_form=None) -> N
         bump_form_seq()
         st.session_state.modo_form = None
 
+    # Histórico só mostra vendas após busca explícita
+    if tela == "historico":
+        st.session_state.hist_resultado = None
+        st.session_state.hist_resultado_label = None
+
     st.rerun()
 
 
