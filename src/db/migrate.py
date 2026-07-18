@@ -35,6 +35,28 @@ def migrate(db_path=DB_PATH) -> None:
         _add_column_if_missing(conn, "tubetes", "nome_exibicao_orc", "TEXT")
         _add_column_if_missing(conn, "facas", "nome_exibicao_orc", "TEXT")
 
+        # Orçamentos — colunas do fluxo de proposta/histórico
+        for col, decl in [
+            ("numero", "TEXT"),
+            ("solicitante", "TEXT"),
+            ("validade_proposta", "TEXT"),
+            ("prazo_pagamento", "TEXT"),
+            ("prazo_entrega", "TEXT"),
+            ("frete_tipo", "TEXT"),
+            ("frete_taxa", "REAL"),
+            ("impostos", "TEXT"),
+            ("informacoes_adicionais", "TEXT"),
+            ("orcamentista_nome", "TEXT"),
+            ("orcamentista_cargo", "TEXT"),
+            ("orcamentista_telefone", "TEXT"),
+            ("orcamentista_email", "TEXT"),
+            ("frete_total", "REAL DEFAULT 0"),
+        ]:
+            _add_column_if_missing(conn, "orcamentos", col, decl)
+
+        _add_column_if_missing(conn, "orcamento_itens", "unidade", "TEXT")
+        _add_column_if_missing(conn, "orcamento_itens", "frete_item", "REAL DEFAULT 0")
+
         # Preenche nomes de exibição vazios com o nome técnico atual
         conn.execute(
             """

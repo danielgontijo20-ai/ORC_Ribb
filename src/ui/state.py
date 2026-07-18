@@ -24,6 +24,10 @@ def init_state(conn) -> None:
         st.session_state.nav_stack = []
     if "form_seq" not in st.session_state:
         st.session_state.form_seq = 0
+    if "proposta_readonly" not in st.session_state:
+        st.session_state.proposta_readonly = False
+    if "flash_ok" not in st.session_state:
+        st.session_state.flash_ok = None
 
     if "proposta" not in st.session_state:
         st.session_state.proposta = _nova_proposta(cfg)
@@ -55,17 +59,33 @@ def ir_para(tela: str, *, cadastro_tela: str | None = None, modo_form=None) -> N
     if modo_form is not None:
         st.session_state.modo_form = modo_form
 
-    # Ao abrir Novo ORC, formulários começam limpos
+    # Ao abrir Novo ORC (exceto clone/consulta já carregados), limpa modo do form
     if tela == "novo_orcamento":
         bump_form_seq()
         st.session_state.modo_form = None
 
-    # Histórico só mostra vendas após busca explícita
+    # Histórico de vendas só após busca explícita
     if tela == "historico":
         st.session_state.hist_resultado = None
         st.session_state.hist_resultado_label = None
 
+    # Histórico de orçamentos: limpa seleção ao entrar
+    if tela == "historico_orcamentos":
+        st.session_state.hist_orc_lista = None
+        st.session_state.hist_orc_detalhe_id = None
+
     st.rerun()
+
+
+def flash_sucesso(msg: str) -> None:
+    st.session_state.flash_ok = msg
+
+
+def consumir_flash() -> None:
+    msg = st.session_state.get("flash_ok")
+    if msg:
+        st.success(msg)
+        st.session_state.flash_ok = None
 
 
 def voltar() -> None:
@@ -87,6 +107,7 @@ def voltar() -> None:
 
 def _nova_proposta(cfg: dict) -> dict:
     return {
+        "id": None,
         "numero": None,
         "cliente": None,
         "solicitante": "",
@@ -105,12 +126,14 @@ def _nova_proposta(cfg: dict) -> dict:
         "orcamentista_cargo": cfg.get("orcamentista_cargo", ""),
         "orcamentista_telefone": cfg.get("orcamentista_telefone", ""),
         "orcamentista_email": cfg.get("orcamentista_email", ""),
+        "status": None,
     }
 
 
 def reiniciar_proposta(conn) -> None:
     cfg = carregar_config(conn)
     st.session_state.proposta = _nova_proposta(cfg)
+    st.session_state.proposta_readonly = False
     st.session_state.modo_form = None
     st.session_state.memoria_calculo = None
     st.session_state.show_dialog = None

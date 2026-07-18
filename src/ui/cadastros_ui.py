@@ -26,7 +26,7 @@ from src.services.cadastros import (
 )
 from src.services.clientes import buscar_clientes, contar_clientes
 from src.services.configuracoes import carregar_config, salvar_config
-from src.ui.state import voltar
+from src.ui.state import consumir_flash, flash_sucesso, voltar
 
 
 LOGO_DIR = ROOT_DIR / "data" / "logos"
@@ -79,11 +79,13 @@ def render_cadastros(conn) -> None:
         st.markdown('<p class="orc-title">Cadastros</p>', unsafe_allow_html=True)
     with top2:
         if st.button("← Voltar", key="cad_voltar"):
-            # Se estiver num subcadastro, volta ao hub; senão ao menu
+            # Subcadastro → hub; hub → menu (um único botão)
             if st.session_state.get("cadastro_tela", "hub") != "hub":
                 st.session_state.cadastro_tela = "hub"
                 st.rerun()
             voltar()
+
+    consumir_flash()
 
     tela = st.session_state.get("cadastro_tela", "hub")
     if tela == "hub":
@@ -120,14 +122,7 @@ def _hub() -> None:
                 st.rerun()
 
 
-def _voltar_hub_btn(key: str) -> None:
-    if st.button("← Voltar", key=key):
-        st.session_state.cadastro_tela = "hub"
-        st.rerun()
-
-
 def _clientes(conn) -> None:
-    _voltar_hub_btn("back_cli")
     st.subheader("Clientes")
     termo = st.text_input("Pesquisar cliente")
     total = contar_clientes(conn, termo=termo or None)
@@ -177,18 +172,17 @@ def _clientes(conn) -> None:
                     cliente_id=atual["id"] if atual else None,
                 )
                 _bump_cad_seq()
-                st.success("Cliente salvo. Formulário pronto para nova inserção.")
+                flash_sucesso("Cliente salvo com sucesso. Formulário pronto para nova inserção.")
                 st.rerun()
     with c2:
         if atual and st.button("Excluir cliente"):
             excluir_cliente(conn, atual["id"])
             _bump_cad_seq()
-            st.success("Cliente excluído.")
+            flash_sucesso("Cliente excluído com sucesso.")
             st.rerun()
 
 
 def _materias(conn) -> None:
-    _voltar_hub_btn("back_mp")
     st.subheader("Matéria-prima")
     st.info(
         "Campo **nome de exibição mp ORC** é usado na descrição automática do item na proposta."
@@ -250,18 +244,17 @@ def _materias(conn) -> None:
                 materia_id=atual["id"] if atual else None,
             )
             _bump_cad_seq()
-            st.success("Salvo. Formulário limpo para nova inserção.")
+            flash_sucesso("Matéria-prima salva com sucesso. Formulário limpo.")
             st.rerun()
     with c2:
         if atual and st.button("Excluir matéria-prima"):
             excluir_materia(conn, atual["id"])
             _bump_cad_seq()
-            st.success("Excluído.")
+            flash_sucesso("Matéria-prima excluída com sucesso.")
             st.rerun()
 
 
 def _tubetes(conn) -> None:
-    _voltar_hub_btn("back_tub")
     st.subheader("Tubetes")
     st.info("Campo **nome de exibição tubete ORC** entra na descrição automática.")
     rows = listar_tubetes(conn)
@@ -309,18 +302,17 @@ def _tubetes(conn) -> None:
                 tubete_id=atual["id"] if atual else None,
             )
             _bump_cad_seq()
-            st.success("Salvo. Formulário limpo para nova inserção.")
+            flash_sucesso("Tubete salvo com sucesso. Formulário limpo.")
             st.rerun()
     with c2:
         if atual and st.button("Excluir tubete"):
             excluir_tubete(conn, atual["id"])
             _bump_cad_seq()
-            st.success("Excluído.")
+            flash_sucesso("Tubete excluído com sucesso.")
             st.rerun()
 
 
 def _caixas(conn) -> None:
-    _voltar_hub_btn("back_cx")
     st.subheader("Caixas")
     rows = listar_caixas(conn)
     if rows:
@@ -351,18 +343,17 @@ def _caixas(conn) -> None:
                 caixa_id=atual["id"] if atual else None,
             )
             _bump_cad_seq()
-            st.success("Salvo. Formulário limpo para nova inserção.")
+            flash_sucesso("Caixa salva com sucesso. Formulário limpo.")
             st.rerun()
     with c2:
         if atual and st.button("Excluir caixa"):
             excluir_caixa(conn, atual["id"])
             _bump_cad_seq()
-            st.success("Excluído.")
+            flash_sucesso("Caixa excluída com sucesso.")
             st.rerun()
 
 
 def _facas(conn) -> None:
-    _voltar_hub_btn("back_faca")
     st.subheader("Facas")
     st.info(
         "Campo **nome de exibição faca ORC** entra na descrição automática. "
@@ -438,18 +429,17 @@ def _facas(conn) -> None:
                 faca_id=atual["id"] if atual else None,
             )
             _bump_cad_seq()
-            st.success("Salvo. Formulário limpo para nova inserção.")
+            flash_sucesso("Faca salva com sucesso. Formulário limpo.")
             st.rerun()
     with c2:
         if atual and st.button("Excluir faca"):
             excluir_faca(conn, atual["id"])
             _bump_cad_seq()
-            st.success("Excluído.")
+            flash_sucesso("Faca excluída com sucesso.")
             st.rerun()
 
 
 def _valores_nativos(conn) -> None:
-    _voltar_hub_btn("back_nat")
     st.subheader("Valores nativos")
     cfg = carregar_config(conn)
     LOGO_DIR.mkdir(parents=True, exist_ok=True)
@@ -550,6 +540,5 @@ def _valores_nativos(conn) -> None:
                 "logo_rodape": logo_rod,
             },
         )
-        _bump_cad_seq()
-        st.success("Valores nativos salvos.")
+        flash_sucesso("Valores nativos salvos com sucesso.")
         st.rerun()

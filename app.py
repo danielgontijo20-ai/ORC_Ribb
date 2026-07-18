@@ -12,6 +12,7 @@ import streamlit as st
 from src.db.database import DB_PATH, connect
 from src.db.migrate import migrate
 from src.ui.cadastros_ui import render_cadastros
+from src.ui.historico_orcamentos_ui import render_historico_orcamentos
 from src.ui.historico_ui import render_historico
 from src.ui.menu import render_menu
 from src.ui.novo_orcamento import render_novo_orcamento
@@ -59,6 +60,8 @@ def main() -> None:
             render_cadastros(conn)
         elif tela == "historico":
             render_historico(conn)
+        elif tela == "historico_orcamentos":
+            render_historico_orcamentos(conn)
         else:
             st.session_state.tela = "menu"
             st.rerun()
