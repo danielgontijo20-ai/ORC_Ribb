@@ -23,6 +23,7 @@ from pathlib import Path
 import pandas as pd
 
 from .database import DB_PATH, ROOT_DIR, connect, init_db
+from .defaults_config import ensure_config_defaults
 
 DEFAULT_XLSX = ROOT_DIR / "data" / "planilhas" / "Banco_RBT.xlsx"
 
@@ -108,6 +109,7 @@ def import_materias_primas(conn: sqlite3.Connection, xlsx: Path) -> int:
             (
                 codigo,
                 nome,
+                nome,  # nome_exibicao_orc inicial = nome técnico
                 parse_br_number(row.get("Preço de compra")),
                 parse_br_number(row.get("Custo")) or 0.0,
                 parse_date(row.get("Última Atualização")),
@@ -117,8 +119,9 @@ def import_materias_primas(conn: sqlite3.Connection, xlsx: Path) -> int:
     conn.executemany(
         """
         INSERT INTO materias_primas
-            (codigo, nome, preco_compra, custo, ultima_atualizacao, observacoes)
-        VALUES (?, ?, ?, ?, ?, ?)
+            (codigo, nome, nome_exibicao_orc, preco_compra, custo,
+             ultima_atualizacao, observacoes)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         rows,
     )
@@ -139,14 +142,15 @@ def import_tubetes(conn: sqlite3.Connection, xlsx: Path) -> int:
             (
                 codigo,
                 nome,
+                nome,  # nome_exibicao_orc inicial
                 parse_br_number(row.get("Preço Compra")),
                 parse_br_number(row.get(custo_col)) or 0.0,
             )
         )
     conn.executemany(
         """
-        INSERT INTO tubetes (codigo, nome, preco_compra, custo)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO tubetes (codigo, nome, nome_exibicao_orc, preco_compra, custo)
+        VALUES (?, ?, ?, ?, ?)
         """,
         rows,
     )
@@ -191,13 +195,14 @@ def import_facas(conn: sqlite3.Connection, xlsx: Path) -> int:
             gv = gap_vertical or 0.0
             area = (largura + gap_lateral) * (altura + gv)
         rows.append(
-            (codigo, tipo, largura, altura, gap_lateral, gap_vertical, area)
+            (codigo, tipo, tipo, largura, altura, gap_lateral, gap_vertical, area)
         )
     conn.executemany(
         """
         INSERT INTO facas
-            (codigo, tipo_faca, largura, altura, gap_lateral, gap_vertical, area)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (codigo, tipo_faca, nome_exibicao_orc, largura, altura,
+             gap_lateral, gap_vertical, area)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         rows,
     )
@@ -348,6 +353,7 @@ def run_import(xlsx: Path, db_path: Path) -> None:
         n_facas = import_facas(conn, xlsx)
         n_seg, n_prod = import_segmentos_e_produtos(conn, xlsx)
         n_cli, n_fat = import_faturamento_e_clientes(conn, xlsx)
+        ensure_config_defaults(conn)
         conn.commit()
 
         print("\nImportado com sucesso:")

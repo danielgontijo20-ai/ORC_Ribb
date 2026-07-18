@@ -1,60 +1,49 @@
 # ORC_Ribb
 
-Sistema para geração de orçamentos da empresa (etiquetas e suprimentos).
+Sistema para geração de orçamentos (etiquetas e suprimentos).
 
 ## Stack
 
-- **Python**
-- **Streamlit** (interface)
-- **SQLite** (banco local)
-- **pandas + openpyxl** (importação da planilha)
+- Python + Streamlit + SQLite
+- pandas / openpyxl (planilha)
+- reportlab (PDF)
 
-## Estrutura
-
-```
-ORC_Ribb/
-├── app.py                      ← tela Streamlit
-├── data/
-│   ├── planilhas/Banco_RBT.xlsx
-│   └── database/orc_ribb.db
-├── docs/
-│   ├── etapa3-banco-de-dados.md
-│   └── etapa4-interface-streamlit.md
-├── src/
-│   ├── db/                     ← banco e importação
-│   ├── services/               ← regras de negócio e cálculos
-│   └── ui/                     ← helpers da interface
-└── requirements.txt
-```
-
-## Preparar o ambiente (Windows)
+## Como rodar (Windows)
 
 ```powershell
 cd C:\Users\dani_\ORC_Ribb
+git fetch origin
+git checkout cursor/etapa5-layout-pptx-3237
+git pull origin cursor/etapa5-layout-pptx-3237
+
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 python -m src.db.import_banco_rbt
+python -m src.db.migrate
+python -m streamlit run app.py
 ```
 
-## Rodar o sistema
+Abre em `http://localhost:8501`.
 
-```powershell
-streamlit run app.py
-```
+## Telas (layout PPTX)
 
-Abre no navegador: `http://localhost:8501`
+1. **Menu** — Novo ORC | Cadastros | Histórico de Vendas  
+2. **Novo Orçamento** — formação à esquerda + prévia da proposta à direita  
+3. **Cadastros** — clientes, MP, tubetes, facas, caixas, valores nativos  
+4. **Histórico** — vendas por cliente agrupadas por NF  
 
-## Fluxo atual
+## Primeiro uso recomendado
 
-1. Selecionar cliente (ou avulso)
-2. Buscar produto no histórico do cliente (grid + filtros)
-3. Ver preço da última venda **daquele produto para aquele cliente**
-4. Calcular orçamento de Etiqueta ou Suprimentos
-5. Salvar itens no pré-orçamento
-6. Ver valor total e lucro total
+1. Vá em **Cadastros → Valores Nativos**
+2. Preencha os dados da empresa (aparecem no cabeçalho da proposta)
+3. Confirme prazo de entrega nativo (**5 dias**) e demais padrões
+4. Ajuste os **nomes de exibição ORC** de matéria-prima, tubete e faca
+5. Elabore um orçamento em **Novo ORC**
 
-## Documentação didática
+## Documentação
 
-- [Etapa 3 — Banco e importação](docs/etapa3-banco-de-dados.md)
-- [Etapa 4 — Interface Streamlit](docs/etapa4-interface-streamlit.md)
+- `docs/etapa3-banco-de-dados.md`
+- `docs/etapa4-interface-streamlit.md`
+- `docs/etapa5-layout-pptx.md`
+- `docs/layout/LAYOUT_ORC_RBT.pptx`
