@@ -32,10 +32,24 @@ from src.ui.state import voltar
 LOGO_DIR = ROOT_DIR / "data" / "logos"
 
 
+def _cad_seq() -> int:
+    return int(st.session_state.get("cad_form_seq") or 0)
+
+
+def _bump_cad_seq() -> None:
+    st.session_state.cad_form_seq = _cad_seq() + 1
+
+
 def _form_key(prefix: str, atual) -> str:
-    """Chave dinâmica: força o Streamlit a recarregar os campos ao trocar o registro."""
+    """Chave dinâmica: recarrega campos ao trocar registro ou após salvar."""
     rid = atual["id"] if atual is not None else "novo"
-    return f"{prefix}_{rid}"
+    return f"{prefix}_{rid}_{_cad_seq()}"
+
+
+def _preparar_nova_insercao(select_key: str) -> None:
+    """Após salvar: limpa formulário e deixa pronto para nova inserção."""
+    _bump_cad_seq()
+    st.session_state[select_key] = "(novo)"
 
 
 def render_cadastros(conn) -> None:
@@ -108,7 +122,11 @@ def _clientes(conn) -> None:
 
     st.markdown("#### Inserir / editar")
     ids = {f"{r['id']} - {r['nome']}": r["id"] for r in rows}
-    modo = st.selectbox("Registro", ["(novo)"] + list(ids.keys()), key="cli_sel")
+    modo = st.selectbox(
+        "Registro",
+        ["(novo)"] + list(ids.keys()),
+        key="cli_sel",
+    )
     atual = None
     if modo != "(novo)":
         atual = next(r for r in rows if r["id"] == ids[modo])
@@ -141,11 +159,13 @@ def _clientes(conn) -> None:
                     uf=uf.strip() or None,
                     cliente_id=atual["id"] if atual else None,
                 )
-                st.success("Cliente salvo.")
+                _preparar_nova_insercao("cli_sel")
+                st.success("Cliente salvo. Formulário pronto para nova inserção.")
                 st.rerun()
     with c2:
         if atual and st.button("Excluir cliente"):
             excluir_cliente(conn, atual["id"])
+            _preparar_nova_insercao("cli_sel")
             st.success("Cliente excluído.")
             st.rerun()
 
@@ -213,11 +233,13 @@ def _materias(conn) -> None:
                 observacoes=obs or None,
                 materia_id=atual["id"] if atual else None,
             )
-            st.success("Salvo.")
+            _preparar_nova_insercao("mp_sel")
+            st.success("Salvo. Formulário pronto para nova inserção.")
             st.rerun()
     with c2:
         if atual and st.button("Excluir matéria-prima"):
             excluir_materia(conn, atual["id"])
+            _preparar_nova_insercao("mp_sel")
             st.success("Excluído.")
             st.rerun()
 
@@ -275,11 +297,13 @@ def _tubetes(conn) -> None:
                 custo=custo,
                 tubete_id=atual["id"] if atual else None,
             )
-            st.success("Salvo.")
+            _preparar_nova_insercao("tub_sel")
+            st.success("Salvo. Formulário pronto para nova inserção.")
             st.rerun()
     with c2:
         if atual and st.button("Excluir tubete"):
             excluir_tubete(conn, atual["id"])
+            _preparar_nova_insercao("tub_sel")
             st.success("Excluído.")
             st.rerun()
 
@@ -319,11 +343,13 @@ def _caixas(conn) -> None:
                 custo=custo,
                 caixa_id=atual["id"] if atual else None,
             )
-            st.success("Salvo.")
+            _preparar_nova_insercao("cx_sel")
+            st.success("Salvo. Formulário pronto para nova inserção.")
             st.rerun()
     with c2:
         if atual and st.button("Excluir caixa"):
             excluir_caixa(conn, atual["id"])
+            _preparar_nova_insercao("cx_sel")
             st.success("Excluído.")
             st.rerun()
 
@@ -401,11 +427,13 @@ def _facas(conn) -> None:
                 gap_vertical=gap_v,
                 faca_id=atual["id"] if atual else None,
             )
-            st.success("Salvo.")
+            _preparar_nova_insercao("faca_sel")
+            st.success("Salvo. Formulário pronto para nova inserção.")
             st.rerun()
     with c2:
         if atual and st.button("Excluir faca"):
             excluir_faca(conn, atual["id"])
+            _preparar_nova_insercao("faca_sel")
             st.success("Excluído.")
             st.rerun()
 
@@ -512,5 +540,6 @@ def _valores_nativos(conn) -> None:
                 "logo_rodape": logo_rod,
             },
         )
+        _bump_cad_seq()
         st.success("Valores nativos salvos.")
         st.rerun()

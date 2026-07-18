@@ -92,7 +92,14 @@ def render_novo_orcamento(conn) -> None:
 
     _render_dialogs(cfg)
 
-    col_form, col_preview = st.columns([1.05, 1], gap="medium")
+    # Prévia alinhada ao topo com a seleção de cliente
+    try:
+        col_form, col_preview = st.columns(
+            [1.05, 1], gap="medium", vertical_alignment="top"
+        )
+    except TypeError:
+        col_form, col_preview = st.columns([1.05, 1], gap="medium")
+
     with col_form:
         _painel_esquerda(conn, cfg, proposta)
     with col_preview:
@@ -100,19 +107,31 @@ def render_novo_orcamento(conn) -> None:
 
 
 def _painel_esquerda(conn, cfg, proposta) -> None:
-    st.markdown('<div class="orc-card">', unsafe_allow_html=True)
+    modo = st.session_state.get("modo_form")
+
+    st.markdown('<div class="orc-card orc-card-strong">', unsafe_allow_html=True)
     st.markdown("#### Selecionar cliente")
     b1, b2, b3 = st.columns(3)
     with b1:
-        if st.button("Selecionar cliente", use_container_width=True):
+        if st.button(
+            "Selecionar cliente",
+            use_container_width=True,
+            type="primary" if st.session_state.get("show_dialog") == "cliente" else "secondary",
+            key="btn_sel_cli",
+        ):
             st.session_state.show_dialog = "cliente"
             st.rerun()
     with b2:
-        if st.button("Cliente avulso", use_container_width=True):
+        if st.button(
+            "Cliente avulso",
+            use_container_width=True,
+            type="primary" if st.session_state.get("show_dialog") == "cliente_avulso" else "secondary",
+            key="btn_cli_avulso",
+        ):
             st.session_state.show_dialog = "cliente_avulso"
             st.rerun()
     with b3:
-        if st.button("Limpar cliente", use_container_width=True):
+        if st.button("Limpar cliente", use_container_width=True, key="btn_limpar_cli"):
             proposta["cliente"] = None
             st.rerun()
 
@@ -125,48 +144,73 @@ def _painel_esquerda(conn, cfg, proposta) -> None:
         st.warning("Nenhum cliente selecionado.")
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('<div class="orc-card">', unsafe_allow_html=True)
+    st.markdown('<div class="orc-card orc-card-strong">', unsafe_allow_html=True)
     st.markdown("#### Formação de orçamento")
     a1, a2, a3 = st.columns(3)
     with a1:
-        if st.button("Inserir nova etiqueta", use_container_width=True, type="primary"):
+        if st.button(
+            "Inserir nova etiqueta",
+            use_container_width=True,
+            type="primary" if modo == "etiqueta" else "secondary",
+            key="btn_nova_etq",
+        ):
             bump_form_seq()
             st.session_state.modo_form = "etiqueta"
             st.session_state.memoria_calculo = None
             st.rerun()
     with a2:
-        if st.button("Inserir novo suprimento", use_container_width=True):
+        if st.button(
+            "Inserir novo suprimento",
+            use_container_width=True,
+            type="primary" if modo == "suprimentos" else "secondary",
+            key="btn_novo_sup",
+        ):
             bump_form_seq()
             st.session_state.modo_form = "suprimentos"
             st.session_state.memoria_calculo = None
             st.rerun()
     with a3:
-        if st.button("Condições gerais", use_container_width=True):
+        if st.button(
+            "Condições gerais",
+            use_container_width=True,
+            type="primary" if st.session_state.get("show_dialog") == "condicoes" else "secondary",
+            key="btn_condicoes",
+        ):
             st.session_state.show_dialog = "condicoes"
             st.rerun()
 
-    _, lucro_total, frete_total = totais_proposta()
+    valor_total, lucro_total, frete_total = totais_proposta()
+    st.markdown(
+        f'<div class="orc-total-bar">Valor total da proposta: {brl(valor_total)}</div>',
+        unsafe_allow_html=True,
+    )
     k1, k2, k3 = st.columns(3)
-    k1.metric("Lucro total da proposta", brl(lucro_total))
+    k1.metric("Lucro total", brl(lucro_total))
     k2.metric("Frete total incluso", brl(frete_total))
     with k3:
         st.write("")
-        if st.button("Gerar PDF da proposta", use_container_width=True):
+        if st.button("Gerar PDF da proposta", use_container_width=True, type="primary"):
             _gerar_e_oferecer_pdf(conn, cfg, proposta)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    if st.session_state.modo_form in ("etiqueta", "suprimentos"):
-        if st.button("← Fechar formulário de inserção", key="fechar_form_item"):
+    if modo in ("etiqueta", "suprimentos"):
+        st.markdown('<div class="orc-slide-panel">', unsafe_allow_html=True)
+        if st.button(
+            "↑ Recuar formulário de inserção",
+            key="fechar_form_item",
+            use_container_width=True,
+        ):
             st.session_state.modo_form = None
             st.rerun()
-        if st.session_state.modo_form == "etiqueta":
+        if modo == "etiqueta":
             _form_etiqueta(conn, cfg, proposta)
         else:
             _form_suprimentos(conn, cfg, proposta)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _form_etiqueta(conn, cfg, proposta) -> None:
-    st.markdown('<div class="orc-card">', unsafe_allow_html=True)
+    st.markdown('<div class="orc-card orc-card-strong orc-slide-panel">', unsafe_allow_html=True)
     st.markdown("#### Inserir etiqueta")
     st.caption("Campos nativos já vêm preenchidos. Demais campos começam em (selecione)/(inserir).")
 
@@ -371,7 +415,7 @@ def _form_etiqueta(conn, cfg, proposta) -> None:
 
 
 def _form_suprimentos(conn, cfg, proposta) -> None:
-    st.markdown('<div class="orc-card">', unsafe_allow_html=True)
+    st.markdown('<div class="orc-card orc-card-strong orc-slide-panel">', unsafe_allow_html=True)
     st.markdown("#### Inserir suprimento")
     st.caption("Campos nativos já vêm preenchidos. Demais campos começam em (inserir)/(selecione).")
 
@@ -521,7 +565,7 @@ def _garantir_numero(conn, proposta) -> None:
 def _painel_proposta(conn, cfg, proposta) -> None:
     st.markdown('<div class="proposta-box">', unsafe_allow_html=True)
     st.markdown("#### Prévia da proposta")
-    st.caption("Atualiza automaticamente conforme as inserções")
+    st.caption("Alinhada ao topo • atualiza automaticamente")
 
     logo = cfg.get("logo_cabecalho") or ""
     if logo and Path(logo).exists():
@@ -544,6 +588,16 @@ def _painel_proposta(conn, cfg, proposta) -> None:
     )
 
     itens = proposta.get("itens") or []
+    valor_total, lucro_total, frete_total = totais_proposta()
+    st.markdown(
+        f'<div class="orc-total-bar">'
+        f"Valor total da proposta: {brl(valor_total)}<br/>"
+        f"<span style='font-weight:500;font-size:0.92rem'>"
+        f"Lucro: {brl(lucro_total)} • Frete incluso: {brl(frete_total)}"
+        f"</span></div>",
+        unsafe_allow_html=True,
+    )
+
     if itens:
         df = pd.DataFrame(
             [
