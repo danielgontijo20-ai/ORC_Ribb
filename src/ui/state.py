@@ -15,16 +15,23 @@ def init_state(conn) -> None:
     if "cadastro_tela" not in st.session_state:
         st.session_state.cadastro_tela = "hub"
     if "modo_form" not in st.session_state:
-        st.session_state.modo_form = None  # etiqueta | suprimentos | None
+        st.session_state.modo_form = None
     if "memoria_calculo" not in st.session_state:
         st.session_state.memoria_calculo = None
     if "show_dialog" not in st.session_state:
         st.session_state.show_dialog = None
     if "nav_stack" not in st.session_state:
         st.session_state.nav_stack = []
+    if "form_seq" not in st.session_state:
+        st.session_state.form_seq = 0
 
     if "proposta" not in st.session_state:
         st.session_state.proposta = _nova_proposta(cfg)
+
+
+def bump_form_seq() -> None:
+    """Invalida widgets dos formulários (limpa campos de inserção/seleção)."""
+    st.session_state.form_seq = int(st.session_state.get("form_seq") or 0) + 1
 
 
 def _snapshot_tela() -> dict:
@@ -36,7 +43,6 @@ def _snapshot_tela() -> dict:
 
 
 def ir_para(tela: str, *, cadastro_tela: str | None = None, modo_form=None) -> None:
-    """Navega para uma tela, guardando a atual na pilha de voltar."""
     atual = _snapshot_tela()
     if atual["tela"] != tela or (
         cadastro_tela is not None and atual["cadastro_tela"] != cadastro_tela
@@ -48,11 +54,16 @@ def ir_para(tela: str, *, cadastro_tela: str | None = None, modo_form=None) -> N
         st.session_state.cadastro_tela = cadastro_tela
     if modo_form is not None:
         st.session_state.modo_form = modo_form
+
+    # Ao abrir Novo ORC, formulários começam limpos
+    if tela == "novo_orcamento":
+        bump_form_seq()
+        st.session_state.modo_form = None
+
     st.rerun()
 
 
 def voltar() -> None:
-    """Volta para a tela anterior da pilha; se vazia, vai ao menu."""
     stack = st.session_state.get("nav_stack") or []
     if not stack:
         st.session_state.tela = "menu"
@@ -98,6 +109,7 @@ def reiniciar_proposta(conn) -> None:
     st.session_state.modo_form = None
     st.session_state.memoria_calculo = None
     st.session_state.show_dialog = None
+    bump_form_seq()
 
 
 def totais_proposta() -> tuple[float, float, float]:

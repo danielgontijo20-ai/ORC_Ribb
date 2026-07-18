@@ -35,8 +35,10 @@ def main() -> None:
         )
         return
 
-    # Garante colunas novas / valores nativos sem apagar o histórico
-    migrate(DB_PATH)
+    # Migração leve (só uma vez por sessão) — evita lock desnecessário
+    if not st.session_state.get("_migrated"):
+        migrate(DB_PATH)
+        st.session_state._migrated = True
 
     with connect() as conn:
         init_state(conn)

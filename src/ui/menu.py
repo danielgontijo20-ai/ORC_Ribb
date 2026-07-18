@@ -12,6 +12,7 @@ from src.ui.state import ir_para
 
 def render_menu(conn) -> None:
     cfg = carregar_config(conn)
+    st.markdown('<div class="orc-top-spacer"></div>', unsafe_allow_html=True)
     st.markdown('<p class="orc-title">ORC_Ribb</p>', unsafe_allow_html=True)
     st.markdown(
         '<p class="orc-sub">Menu principal — elabore orçamentos, gerencie cadastros e consulte o histórico.</p>',
