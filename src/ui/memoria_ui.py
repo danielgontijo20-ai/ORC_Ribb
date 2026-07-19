@@ -8,7 +8,7 @@ from typing import Any
 import streamlit as st
 
 from src.services.calculos_orcamento import ResultadoEtiqueta, ResultadoSuprimentos
-from src.ui.formatters import brl
+from src.ui.formatters import brl, pct
 
 
 # Rótulos amigáveis dos campos de cálculo
@@ -81,7 +81,8 @@ def _fmt_valor(chave: str, valor: Any) -> str:
             return f"{float(valor):.6f}".replace(".", ",")
         if float(valor).is_integer():
             return f"{int(valor)}"
-        return f"{float(valor):,.4f}".replace(",", "X").replace(".", ",").replace("X", ".")
+        # Demais números: 2 casas
+        return f"{float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return str(valor)
 
 
@@ -158,12 +159,13 @@ def media_lucro_pct_proporcional(itens: list[dict]) -> float:
     return soma_pond / soma_peso
 
 
-def _resumo_topo(itens: list[dict], rascunho: dict | None = None) -> None:
-    """Lucro total e média de margens no topo da memória."""
+def resumo_memoria(
+    itens: list[dict], rascunho: dict | None = None
+) -> tuple[float, float]:
+    """Retorna (lucro_total, média_margens_%) incluindo rascunho se houver."""
     lucro = lucro_total_itens(itens)
     media = media_lucro_pct_proporcional(itens)
 
-    # Inclui rascunho (cálculo atual) se ainda não inserido
     if rascunho and rascunho.get("resultado") is not None:
         calc = _resultado_para_dict(rascunho.get("resultado"))
         lucro_r = float(calc.get("lucro_total") or 0)
@@ -182,16 +184,64 @@ def _resumo_topo(itens: list[dict], rascunho: dict | None = None) -> None:
         else:
             pct_r = (lucro_r / valor_r * 100.0) if valor_r else 0.0
 
-        # média combinada: itens + rascunho
         valor_itens = sum(float(it.get("valor_venda_total") or 0) for it in (itens or []))
         lucro = lucro + lucro_r
         peso = valor_itens + valor_r
         if peso > 0:
-            media = ((media * valor_itens) + (pct_r * valor_r)) / peso if valor_itens else pct_r
+            media = (
+                ((media * valor_itens) + (pct_r * valor_r)) / peso if valor_itens else pct_r
+            )
+    return lucro, media
 
+
+def coletar_secoes_memoria(
+    itens: list[dict], rascunho: dict | None = None
+) -> list[dict]:
+    """
+    Seções da memória para UI/PDF.
+    Cada item: {titulo, params: [(campo,valor)], calculo: [(campo,valor)]}
+    """
+    secoes: list[dict] = []
+    if rascunho:
+        tipo = (rascunho.get("tipo") or "item").capitalize()
+        params = rascunho.get("params") or {}
+        desc = (
+            params.get("Descrição")
+            or params.get("Matéria-prima")
+            or params.get("Dimensão")
+            or "em elaboração"
+        )
+        calculo = _resultado_para_dict(rascunho.get("resultado"))
+        secoes.append(
+            {
+                "titulo": f"Cálculo atual (não inserido) — {tipo}: {desc}",
+                "params": _dict_para_linhas(params, _LABELS_PARAM),
+                "calculo": _dict_para_linhas(calculo, _LABELS_CALC),
+            }
+        )
+    for i, it in enumerate(itens or []):
+        tipo = (it.get("tipo_item") or "item").capitalize()
+        desc = it.get("descricao") or "(sem descrição)"
+        params = it.get("parametros") or {}
+        calculo = it.get("calculo") or {}
+        secoes.append(
+            {
+                "titulo": f"Item {i + 1:02d} — {tipo}: {desc}",
+                "params": _dict_para_linhas(params, _LABELS_PARAM),
+                "calculo": _dict_para_linhas(
+                    calculo if isinstance(calculo, dict) else {}, _LABELS_CALC
+                ),
+            }
+        )
+    return secoes
+
+
+def _resumo_topo(itens: list[dict], rascunho: dict | None = None) -> None:
+    """Lucro total e média de margens no topo da memória."""
+    lucro, media = resumo_memoria(itens, rascunho)
     m1, m2 = st.columns(2)
     m1.metric("Lucro total", brl(lucro))
-    m2.metric("Média de margens", f"{media:.2f}%".replace(".", ","))
+    m2.metric("Média de margens", pct(media))
     st.divider()
 
 

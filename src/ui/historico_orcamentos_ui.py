@@ -5,13 +5,15 @@ from __future__ import annotations
 import pandas as pd
 import streamlit as st
 
+from src.services.configuracoes import carregar_config
 from src.services.orcamentos import (
     buscar_orcamentos,
     clonar_para_novo,
     obter_orcamento,
     orcamento_para_proposta,
 )
-from src.ui.formatters import brl
+from src.services.pdf_memoria import gerar_pdf_memoria
+from src.ui.formatters import brl, pct
 from src.ui.grid_select import dataframe_selecionavel
 from src.ui.memoria_ui import (
     lucro_total_itens,
@@ -208,8 +210,23 @@ def _painel_detalhe(conn, orcamento_id: int) -> None:
             itens_mem = prop.get("itens") or []
             m1, m2 = st.columns(2)
             m1.metric("Lucro total", brl(lucro_total_itens(itens_mem)))
-            m2.metric(
-                "Média de margens",
-                f"{media_lucro_pct_proporcional(itens_mem):.2f}%".replace(".", ","),
-            )
+            m2.metric("Média de margens", pct(media_lucro_pct_proporcional(itens_mem)))
             render_memorias_itens(itens_mem, key_prefix=f"hist_mem_{orcamento_id}")
+            cfg = carregar_config(conn)
+            pdf_bytes = gerar_pdf_memoria(
+                itens=itens_mem,
+                orcamento={
+                    "numero": orc.get("numero"),
+                    "cliente_nome": orc.get("cliente_nome"),
+                },
+                empresa=cfg,
+            )
+            st.download_button(
+                "Gerar PDF da memória",
+                data=pdf_bytes,
+                file_name=f"memoria_{orc.get('numero') or orcamento_id}.pdf",
+                mime="application/pdf",
+                use_container_width=True,
+                type="primary",
+                key=f"btn_pdf_mem_hist_{orcamento_id}",
+            )

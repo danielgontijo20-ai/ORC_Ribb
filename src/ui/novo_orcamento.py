@@ -34,8 +34,9 @@ from src.services.descricao_item import (
     montar_descricao_suprimento,
 )
 from src.services.orcamentos import salvar_orcamento
+from src.services.pdf_memoria import gerar_pdf_memoria
 from src.services.pdf_proposta import gerar_pdf_proposta
-from src.ui.formatters import brl, texto_ou_traco
+from src.ui.formatters import brl, pct, texto_ou_traco
 from src.ui.grid_select import dataframe_selecionavel
 from src.ui.memoria_ui import render_memoria_completa
 from src.ui.scroll import aplicar_scroll_se_pedido, marcar_scroll_form
@@ -217,7 +218,7 @@ def _painel_esquerda(conn, cfg, proposta, *, readonly: bool = False) -> None:
         )
         k1, k2, k3 = st.columns(3)
         k1.metric("Lucro total", brl(lucro_total))
-        k2.metric("Média lucro %", f"{media_lucro:.2f}%".replace(".", ","))
+        k2.metric("Média lucro %", pct(media_lucro))
         k3.metric("Frete total incluso", brl(frete_total))
 
         b1, b2, b3 = st.columns(3)
@@ -541,45 +542,43 @@ def _form_suprimentos_body(conn, cfg, proposta) -> None:
         "Suprimento do cadastro",
         cat_opts,
         key=_fk("sup_cat"),
-        help="Selecione um pré-cadastro ou preencha manualmente.",
+        help="Selecione um pré-cadastro: descrição e custo vêm preenchidos e permanecem editáveis.",
     )
     cat_row = cat_map.get(cat_sel) if cat_sel != "(inserir manualmente)" else None
 
+    # Ao trocar o cadastro, atualiza descrição/custo no session_state (widgets com key
+    # ignoram value= nas reruns seguintes).
+    track_key = _fk("sup_cat_applied")
+    desc_key = _fk("sup_desc")
+    custo_key = _fk("sup_custo")
+    if st.session_state.get(track_key) != cat_sel:
+        st.session_state[track_key] = cat_sel
+        if cat_row is not None:
+            st.session_state[desc_key] = (
+                cat_row["nome_exibicao"] or cat_row["descricao"] or ""
+            )
+            st.session_state[custo_key] = float(cat_row["custo"] or 0)
+        else:
+            st.session_state.pop(desc_key, None)
+            st.session_state.pop(custo_key, None)
+
     c1, c2 = st.columns(2)
     with c1:
-        if cat_row is not None:
-            descricao_in = cat_row["nome_exibicao"] or cat_row["descricao"] or ""
-            st.text_input(
-                "Descrição do item",
-                value=descricao_in,
-                disabled=True,
-                key=_fk("sup_desc_locked"),
-            )
-            custo_default = float(cat_row["custo"] or 0)
-            custo_num = st.number_input(
-                "Custo",
-                min_value=0.0,
-                value=custo_default,
-                step=0.01,
-                format="%.4f",
-                key=_fk("sup_custo"),
-            )
-        else:
-            descricao_in = st.text_input(
-                "Descrição do item",
-                value="",
-                placeholder=PLACE_INS,
-                key=_fk("sup_desc"),
-            )
-            custo_num = st.number_input(
-                "Custo",
-                min_value=0.0,
-                value=None,
-                step=0.01,
-                format="%.4f",
-                placeholder=PLACE_INS,
-                key=_fk("sup_custo"),
-            )
+        descricao_in = st.text_input(
+            "Descrição do item",
+            value="",
+            placeholder=PLACE_INS,
+            key=desc_key,
+        )
+        custo_num = st.number_input(
+            "Custo",
+            min_value=0.0,
+            value=None,
+            step=0.01,
+            format="%.2f",
+            placeholder=PLACE_INS,
+            key=custo_key,
+        )
         unidade = st.text_input(
             "Unidade de medida (nativo)",
             value=cfg.get("unidade_suprimentos", "UN"),
@@ -768,9 +767,11 @@ def _painel_proposta(conn, cfg, proposta, *, readonly: bool = False) -> None:
                         "N° Item": f"{i+1:02d}",
                         "Descrição": it["descricao"],
                         "Und": it.get("unidade"),
-                        "Qtd": it.get("quantidade"),
-                        "Preço Unit.": it.get("preco_unitario"),
-                        "Valor total": it.get("valor_venda_total"),
+                        "Qtd": (
+                            f"{float(it.get('quantidade') or 0):.2f}".replace(".", ",")
+                        ),
+                        "Preço Unit.": brl(it.get("preco_unitario")),
+                        "Valor total": brl(it.get("valor_venda_total")),
                     }
                     for i, it in enumerate(itens)
                 ]
@@ -1029,9 +1030,36 @@ def _dialog_condicoes(cfg) -> None:
 
 @st.dialog("Memória de cálculo", width="large")
 def _dialog_memoria() -> None:
-    itens = (st.session_state.get("proposta") or {}).get("itens") or []
+    proposta = st.session_state.get("proposta") or {}
+    itens = proposta.get("itens") or []
     rascunho = st.session_state.get("memoria_calculo")
     render_memoria_completa(itens=itens, rascunho=rascunho)
-    if st.button("Fechar", key="mem_fechar"):
-        st.session_state.show_dialog = None
-        st.rerun()
+
+    cliente = proposta.get("cliente") or {}
+    with connect() as conn:
+        cfg = carregar_config(conn)
+    pdf_bytes = gerar_pdf_memoria(
+        itens=itens,
+        rascunho=rascunho,
+        orcamento={
+            "numero": proposta.get("numero"),
+            "cliente_nome": cliente.get("nome"),
+        },
+        empresa=cfg,
+    )
+    numero = proposta.get("numero") or "rascunho"
+    b1, b2 = st.columns(2)
+    with b1:
+        st.download_button(
+            "Gerar PDF da memória",
+            data=pdf_bytes,
+            file_name=f"memoria_{numero}.pdf",
+            mime="application/pdf",
+            use_container_width=True,
+            type="primary",
+            key="btn_pdf_memoria",
+        )
+    with b2:
+        if st.button("Fechar", key="mem_fechar", use_container_width=True):
+            st.session_state.show_dialog = None
+            st.rerun()

@@ -64,8 +64,24 @@ APP_CSS = """
         border: 2px solid var(--orc-border);
         border-radius: 12px;
         padding: 0.45rem 0.65rem;
+        overflow: hidden;
     }
     div[data-testid="stMetric"] label { color: var(--orc-muted) !important; }
+    /* Valores (lucro, margem, unitário) cabem no campo — 2 casas via formatação */
+    div[data-testid="stMetric"] [data-testid="stMetricValue"] {
+        font-family: "Segoe UI", "Helvetica Neue", sans-serif !important;
+        font-size: 1.0rem !important;
+        font-weight: 700 !important;
+        line-height: 1.25 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        font-variant-numeric: tabular-nums;
+        letter-spacing: -0.01em;
+    }
+    div[data-testid="stMetric"] [data-testid="stMetricDelta"] {
+        font-size: 0.8rem !important;
+    }
 
     .stButton > button {
         border-radius: 11px !important;
