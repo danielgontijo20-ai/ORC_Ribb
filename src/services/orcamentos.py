@@ -8,6 +8,26 @@ from copy import deepcopy
 from datetime import datetime
 from typing import Any
 
+# Códigos persistidos no banco
+STATUS_RASCUNHO = "rascunho"
+STATUS_GERADO = "gerado"
+STATUS_APROVADO = "aprovado"
+STATUS_CANCELADO = "cancelado"
+
+STATUS_LABELS: dict[str, str] = {
+    STATUS_RASCUNHO: "Rascunho",
+    STATUS_GERADO: "Orçamento gerado",
+    "finalizado": "Orçamento gerado",  # legado
+    STATUS_APROVADO: "Aprovado",
+    STATUS_CANCELADO: "Cancelado",
+}
+
+
+def label_status(status: str | None) -> str:
+    if not status:
+        return "-"
+    return STATUS_LABELS.get(str(status), str(status))
+
 
 def _now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -210,9 +230,28 @@ def buscar_orcamentos(
     conn: sqlite3.Connection,
     *,
     termo: str | None = None,
-    limite: int = 200,
+    cliente: str | None = None,
+    status: str | None = None,
+    dia: int | None = None,
+    mes: int | None = None,
+    ano: int | None = None,
+    limite: int = 500,
 ) -> list[sqlite3.Row]:
+    """
+    Lista orçamentos com filtros opcionais.
+    Dia/mês/ano usam a data de criação (criado_em).
+    """
     termo = (termo or "").strip()
+    cliente = (cliente or "").strip()
+    status = (status or "").strip() or None
+    if status == "gerado":
+        # inclui legado finalizado
+        status_filter = ("gerado", "finalizado")
+    elif status:
+        status_filter = (status,)
+    else:
+        status_filter = None
+
     sql = """
         SELECT
             o.id, o.numero, o.status, o.valor_total, o.lucro_total, o.frete_total,
@@ -221,19 +260,71 @@ def buscar_orcamentos(
             COALESCE(c.cnpj_cpf, o.cliente_avulso_documento) AS cliente_doc
         FROM orcamentos o
         LEFT JOIN clientes c ON c.id = o.cliente_id
+        WHERE 1=1
     """
     params: list[Any] = []
     if termo:
         like = f"%{termo}%"
         sql += """
-            WHERE o.numero LIKE ?
-               OR COALESCE(c.nome, o.cliente_avulso_nome, '') LIKE ?
-               OR COALESCE(c.cnpj_cpf, o.cliente_avulso_documento, '') LIKE ?
+            AND (
+                o.numero LIKE ?
+                OR COALESCE(c.nome, o.cliente_avulso_nome, '') LIKE ?
+                OR COALESCE(c.cnpj_cpf, o.cliente_avulso_documento, '') LIKE ?
+            )
         """
         params.extend([like, like, like])
+    if cliente:
+        like_c = f"%{cliente}%"
+        sql += """
+            AND (
+                COALESCE(c.nome, o.cliente_avulso_nome, '') LIKE ?
+                OR COALESCE(c.cnpj_cpf, o.cliente_avulso_documento, '') LIKE ?
+            )
+        """
+        params.extend([like_c, like_c])
+    if status_filter:
+        placeholders = ", ".join("?" for _ in status_filter)
+        sql += f" AND o.status IN ({placeholders})"
+        params.extend(status_filter)
+    if ano:
+        sql += " AND CAST(strftime('%Y', o.criado_em) AS INTEGER) = ?"
+        params.append(int(ano))
+    if mes:
+        sql += " AND CAST(strftime('%m', o.criado_em) AS INTEGER) = ?"
+        params.append(int(mes))
+    if dia:
+        sql += " AND CAST(strftime('%d', o.criado_em) AS INTEGER) = ?"
+        params.append(int(dia))
+
     sql += " ORDER BY o.atualizado_em DESC, o.id DESC LIMIT ?"
     params.append(limite)
     return list(conn.execute(sql, params))
+
+
+def atualizar_status_orcamento(
+    conn: sqlite3.Connection, orcamento_id: int, status: str
+) -> None:
+    conn.execute(
+        """
+        UPDATE orcamentos
+        SET status = ?, atualizado_em = ?
+        WHERE id = ?
+        """,
+        (status, _now(), orcamento_id),
+    )
+    conn.commit()
+
+
+def anos_orcamentos(conn: sqlite3.Connection) -> list[int]:
+    rows = conn.execute(
+        """
+        SELECT DISTINCT CAST(strftime('%Y', criado_em) AS INTEGER) AS ano
+        FROM orcamentos
+        WHERE criado_em IS NOT NULL AND TRIM(criado_em) != ''
+        ORDER BY ano DESC
+        """
+    ).fetchall()
+    return [int(r["ano"]) for r in rows if r["ano"]]
 
 
 def obter_orcamento(conn: sqlite3.Connection, orcamento_id: int) -> dict | None:

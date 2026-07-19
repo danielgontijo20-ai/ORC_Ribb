@@ -85,6 +85,9 @@ def migrate(db_path=DB_PATH) -> None:
 
         ensure_config_defaults(conn)
 
+        # Status: rascunho | gerado | aprovado (+ legado finalizado)
+        _migrate_orcamentos_status(conn)
+
         # Suprimentos: importa pré-cadastro se a tabela estiver vazia
         n_sup = conn.execute("SELECT COUNT(*) c FROM suprimentos").fetchone()["c"]
         if n_sup == 0:
@@ -99,6 +102,68 @@ def migrate(db_path=DB_PATH) -> None:
 
     print(f"Migração concluída: {db_path}")
     print(f"Valores nativos padrão carregados ({len(DEFAULT_CONFIG)} chaves).")
+
+
+def _migrate_orcamentos_status(conn: sqlite3.Connection) -> None:
+    """Amplia CHECK de status e normaliza 'finalizado' → 'gerado'."""
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='orcamentos'"
+    ).fetchone()
+    ddl = (row["sql"] if row else "") or ""
+    precisa_rebuild = "gerado" not in ddl or "aprovado" not in ddl
+
+    if precisa_rebuild:
+        print("+ orcamentos.status: ampliando CHECK (gerado/aprovado)")
+        conn.execute("PRAGMA foreign_keys=OFF")
+        conn.execute("DROP TABLE IF EXISTS orcamentos_new")
+        conn.execute(
+            """
+            CREATE TABLE orcamentos_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                numero TEXT,
+                cliente_id INTEGER,
+                cliente_avulso_nome TEXT,
+                cliente_avulso_documento TEXT,
+                solicitante TEXT,
+                status TEXT NOT NULL DEFAULT 'rascunho'
+                    CHECK (status IN ('rascunho', 'gerado', 'aprovado', 'finalizado', 'cancelado')),
+                validade_proposta TEXT,
+                prazo_pagamento TEXT,
+                prazo_entrega TEXT,
+                frete_tipo TEXT,
+                frete_taxa REAL,
+                impostos TEXT,
+                informacoes_adicionais TEXT,
+                orcamentista_nome TEXT,
+                orcamentista_cargo TEXT,
+                orcamentista_telefone TEXT,
+                orcamentista_email TEXT,
+                lucro_total REAL DEFAULT 0,
+                valor_total REAL DEFAULT 0,
+                frete_total REAL DEFAULT 0,
+                criado_em TEXT NOT NULL DEFAULT (datetime('now')),
+                atualizado_em TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+            )
+            """
+        )
+        cols_old = _columns(conn, "orcamentos")
+        cols_new = _columns(conn, "orcamentos_new")
+        comuns = [c for c in cols_new if c in cols_old]
+        cols_sql = ", ".join(comuns)
+        conn.execute(
+            f"INSERT INTO orcamentos_new ({cols_sql}) SELECT {cols_sql} FROM orcamentos"
+        )
+        conn.execute("DROP TABLE orcamentos")
+        conn.execute("ALTER TABLE orcamentos_new RENAME TO orcamentos")
+        conn.execute("PRAGMA foreign_keys=ON")
+
+    # Legado: finalizado passa a ser tratado como gerado
+    cur = conn.execute(
+        "UPDATE orcamentos SET status = 'gerado' WHERE status = 'finalizado'"
+    )
+    if cur.rowcount:
+        print(f"+ orcamentos: {cur.rowcount} status finalizado → gerado")
 
 
 if __name__ == "__main__":

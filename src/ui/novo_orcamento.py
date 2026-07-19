@@ -33,7 +33,13 @@ from src.services.descricao_item import (
     montar_descricao_etiqueta,
     montar_descricao_suprimento,
 )
-from src.services.orcamentos import salvar_orcamento
+from src.services.orcamentos import (
+    STATUS_APROVADO,
+    STATUS_GERADO,
+    atualizar_status_orcamento,
+    label_status,
+    salvar_orcamento,
+)
 from src.services.pdf_memoria import gerar_pdf_memoria
 from src.services.pdf_proposta import gerar_pdf_proposta
 from src.ui.formatters import brl, pct, texto_ou_traco
@@ -91,8 +97,9 @@ def render_novo_orcamento(conn) -> None:
         st.markdown(f'<p class="orc-title">{titulo}</p>', unsafe_allow_html=True)
         if readonly:
             st.caption(
-                f"Somente leitura — {proposta.get('numero') or 'sem número'}. "
-                "Use Histórico de Orçamentos → Clonar para editar uma cópia."
+                f"Somente leitura — {proposta.get('numero') or 'sem número'} "
+                f"| Status: **{label_status(proposta.get('status'))}**. "
+                "Use Histórico → Clonar para editar uma cópia."
             )
         else:
             st.caption("Menu → Novo Orçamento")
@@ -115,6 +122,27 @@ def render_novo_orcamento(conn) -> None:
     consumir_flash()
     if readonly:
         st.info("Modo consulta: alterações desabilitadas.")
+        status_atual = (proposta.get("status") or "").lower()
+        pode_aprovar = status_atual in ("gerado", "finalizado")
+        if proposta.get("id") and pode_aprovar:
+            if st.button(
+                "Aprovado",
+                type="primary",
+                use_container_width=True,
+                key="btn_aprovar_orc",
+            ):
+                with st.spinner("Atualizando status..."):
+                    atualizar_status_orcamento(
+                        conn, int(proposta["id"]), STATUS_APROVADO
+                    )
+                proposta["status"] = STATUS_APROVADO
+                flash_sucesso(
+                    f"Orçamento {proposta.get('numero') or proposta['id']} "
+                    "marcado como Aprovado."
+                )
+                st.rerun()
+        elif status_atual == STATUS_APROVADO:
+            st.success("Status: Aprovado")
 
     # Dialogs também no modo consulta (memória de cálculo)
     _render_dialogs(cfg)
@@ -537,10 +565,12 @@ def _salvar_formacao_orcamento(conn, proposta) -> None:
         return
     with st.spinner("Salvando orçamento..."):
         _garantir_numero(conn, proposta)
-        salvar_orcamento(conn, proposta, status="rascunho")
+        salvar_orcamento(conn, proposta, status=STATUS_GERADO)
+        proposta["status"] = STATUS_GERADO
         marcar_proposta_salva()
     flash_sucesso(
-        f"Orçamento {proposta.get('numero')} salvo. Agora você pode gerar o PDF."
+        f"Orçamento {proposta.get('numero')} salvo com status "
+        f"**{label_status(STATUS_GERADO)}**. Agora você pode gerar o PDF."
     )
     st.rerun()
 
@@ -589,7 +619,7 @@ def _form_suprimentos_body(conn, cfg, proposta) -> None:
     difal_idx = difal_opts.index(difal_nativo) if difal_nativo in difal_opts else 1
 
     # Tab: esquerda → direita, depois linha de baixo
-    # Unidade → Lucro → Quantidade
+    # Descrição→Difal | Custo→Frete | Unidade→Lucro | Quantidade
     r1l, r1r = st.columns(2)
     with r1l:
         descricao_in = st.text_input(
@@ -644,14 +674,18 @@ def _form_suprimentos_body(conn, cfg, proposta) -> None:
             key=_fk("sup_lucro"),
         )
 
-    qtd_num = st.number_input(
-        "Quantidade",
-        min_value=0.0,
-        value=None,
-        step=1.0,
-        placeholder=PLACE_INS,
-        key=_fk("sup_qtd"),
-    )
+    r4l, r4r = st.columns(2)
+    with r4l:
+        qtd_num = st.number_input(
+            "Quantidade",
+            min_value=0.0,
+            value=None,
+            step=1.0,
+            placeholder=PLACE_INS,
+            key=_fk("sup_qtd"),
+        )
+    with r4r:
+        st.write("")
 
     custo = float(custo_num) if custo_num is not None else None
     quantidade = float(qtd_num) if qtd_num is not None else None
@@ -890,19 +924,27 @@ def _painel_proposta(conn, cfg, proposta, *, readonly: bool = False) -> None:
             f"**Observações Adicionais:**  \n{proposta.get('informacoes_adicionais')}"
         )
 
-        # Rodapé: orçamentista à esquerda, logo alinhada à margem direita
+        # Rodapé: orçamentista na mesma margem esquerda do bloco acima; logo à direita
         logo_r = cfg.get("logo_rodape") or ""
-        f_info, f_sp, f_logo = st.columns([1.4, 0.4, 1])
+        f_info, f_logo = st.columns([1.6, 1])
         with f_info:
             st.markdown(
-                f"{proposta.get('orcamentista_nome') or '-'}  \n"
-                f"{proposta.get('orcamentista_cargo') or '-'}  \n"
-                f"{proposta.get('orcamentista_telefone') or '-'}  \n"
+                f"<div style='margin:0;padding:0;text-align:left'>"
+                f"{proposta.get('orcamentista_nome') or '-'}<br/>"
+                f"{proposta.get('orcamentista_cargo') or '-'}<br/>"
+                f"{proposta.get('orcamentista_telefone') or '-'}<br/>"
                 f"{proposta.get('orcamentista_email') or '-'}"
+                f"</div>",
+                unsafe_allow_html=True,
             )
         with f_logo:
             if logo_r and Path(logo_r).exists():
+                st.markdown(
+                    "<div style='text-align:right'>",
+                    unsafe_allow_html=True,
+                )
                 st.image(logo_r, width=200)
+                st.markdown("</div>", unsafe_allow_html=True)
 
         if not readonly and st.button(
             "Limpar orçamento (começar do zero)", key="limpar_preview"
@@ -926,10 +968,14 @@ def _gerar_e_oferecer_pdf(conn, cfg, proposta) -> None:
         if not proposta.get("numero"):
             _garantir_numero(conn, proposta)
         valor_total, _, _ = totais_proposta()
-        salvar_orcamento(conn, proposta, status="finalizado")
+        salvar_orcamento(conn, proposta, status=STATUS_GERADO)
+        proposta["status"] = STATUS_GERADO
 
         progress.progress(55, text="Montando PDF da proposta...")
         cliente = proposta["cliente"]
+        frete_exibicao = proposta.get("frete_tipo", "CIF")
+        if frete_exibicao == "Taxa" and proposta.get("frete_taxa"):
+            frete_exibicao = f"Taxa: {proposta.get('frete_taxa')}"
         pdf_bytes = gerar_pdf_proposta(
             empresa=cfg,
             orcamento={
@@ -940,7 +986,7 @@ def _gerar_e_oferecer_pdf(conn, cfg, proposta) -> None:
                 "validade_proposta": proposta.get("validade_proposta"),
                 "prazo_pagamento": proposta.get("prazo_pagamento"),
                 "prazo_entrega": proposta.get("prazo_entrega"),
-                "frete_tipo": proposta.get("frete_tipo"),
+                "frete_tipo": frete_exibicao,
                 "impostos": proposta.get("impostos"),
                 "informacoes_adicionais": proposta.get("informacoes_adicionais"),
                 "orcamentista_nome": proposta.get("orcamentista_nome"),
@@ -957,7 +1003,8 @@ def _gerar_e_oferecer_pdf(conn, cfg, proposta) -> None:
         st.session_state["_pdf_bytes"] = pdf_bytes
         st.session_state["_pdf_name"] = f"{proposta.get('numero') or 'proposta'}.pdf"
         flash_sucesso(
-            f"Orçamento {proposta.get('numero')} finalizado e salvo no histórico."
+            f"Orçamento {proposta.get('numero')} com status "
+            f"**{label_status(STATUS_GERADO)}** — PDF pronto."
         )
     finally:
         progress.empty()

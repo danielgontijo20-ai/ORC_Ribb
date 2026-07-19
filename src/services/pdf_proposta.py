@@ -241,7 +241,8 @@ def gerar_pdf_proposta(
     )
     story.append(Spacer(1, 8 * mm))
 
-    # Rodapé: orçamentista à esquerda, logo alinhada à margem direita
+    # Orçamentista: mesmo fluxo/margem esquerda das condições acima (Paragraph direto).
+    # Logo à direita em tabela com padding zerado para não deslocar o texto.
     rodape_logo_w, rodape_logo_h = 60.0, 30.0
     orcamentista_txt = Paragraph(
         f"{orcamento.get('orcamentista_nome') or '-'}<br/>"
@@ -250,18 +251,21 @@ def gerar_pdf_proposta(
         f"{orcamento.get('orcamentista_email') or '-'}",
         small_left,
     )
+    logo_cell = _logo_cell(logo_rodape, rodape_logo_w, rodape_logo_h)
     footer = Table(
-        [[orcamentista_txt, _logo_cell(logo_rodape, rodape_logo_w, rodape_logo_h)]],
-        colWidths=[112 * mm, 68 * mm],
+        [[orcamentista_txt, logo_cell]],
+        colWidths=[110 * mm, 70 * mm],
     )
     footer.setStyle(
         TableStyle(
             [
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("ALIGN", (0, 0), (0, 0), "LEFT"),
                 ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-                ("LEFTPADDING", (0, 0), (0, 0), 0),
-                ("RIGHTPADDING", (1, 0), (1, 0), 0),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 0),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
             ]
         )
     )

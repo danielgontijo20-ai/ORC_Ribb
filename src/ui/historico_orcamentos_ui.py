@@ -7,8 +7,15 @@ import streamlit as st
 
 from src.services.configuracoes import carregar_config
 from src.services.orcamentos import (
+    STATUS_APROVADO,
+    STATUS_GERADO,
+    STATUS_RASCUNHO,
+    STATUS_CANCELADO,
+    anos_orcamentos,
+    atualizar_status_orcamento,
     buscar_orcamentos,
     clonar_para_novo,
+    label_status,
     obter_orcamento,
     orcamento_para_proposta,
 )
@@ -28,6 +35,30 @@ from src.ui.state import (
     voltar,
 )
 
+_MESES = [
+    "(todos)",
+    "01 - Janeiro",
+    "02 - Fevereiro",
+    "03 - Março",
+    "04 - Abril",
+    "05 - Maio",
+    "06 - Junho",
+    "07 - Julho",
+    "08 - Agosto",
+    "09 - Setembro",
+    "10 - Outubro",
+    "11 - Novembro",
+    "12 - Dezembro",
+]
+
+_STATUS_FILTRO = [
+    ("(todos)", None),
+    ("Orçamento gerado", STATUS_GERADO),
+    ("Aprovado", STATUS_APROVADO),
+    ("Rascunho", STATUS_RASCUNHO),
+    ("Cancelado", STATUS_CANCELADO),
+]
+
 
 def render_historico_orcamentos(conn) -> None:
     top1, top2 = st.columns([4, 1])
@@ -36,37 +67,89 @@ def render_historico_orcamentos(conn) -> None:
             '<p class="orc-title">Histórico de Orçamentos</p>',
             unsafe_allow_html=True,
         )
-        st.caption("Consulte orçamentos realizados. Histórico é somente leitura — use Clonar para reaproveitar.")
+        st.caption(
+            "Consulte orçamentos realizados. Histórico é somente leitura — "
+            "use Clonar para reaproveitar. Abra um orçamento para marcar como Aprovado."
+        )
     with top2:
         if st.button("← Voltar", key="hist_orc_voltar"):
             voltar()
 
     with st.container(border=True):
         termo = st.text_input(
-            "Buscar por número do orçamento ou nome do cliente",
-            placeholder="Ex.: ORC-00005 ou ALIMENTO DIAMANTE",
+            "Buscar por número do orçamento",
+            placeholder="Ex.: ORC-00005",
             key="hist_orc_termo",
         )
+
+        f1, f2, f3, f4, f5 = st.columns(5)
+        anos = anos_orcamentos(conn)
+        ano_opts = ["(todos)"] + [str(a) for a in anos]
+        with f1:
+            dia_sel = st.selectbox(
+                "Dia",
+                ["(todos)"] + [f"{d:02d}" for d in range(1, 32)],
+                key="hist_orc_dia",
+            )
+        with f2:
+            mes_sel = st.selectbox("Mês", _MESES, key="hist_orc_mes")
+        with f3:
+            ano_sel = st.selectbox("Ano", ano_opts, key="hist_orc_ano")
+        with f4:
+            cliente_filtro = st.text_input(
+                "Cliente",
+                placeholder="Nome ou CNPJ",
+                key="hist_orc_cliente",
+            )
+        with f5:
+            status_labels = [x[0] for x in _STATUS_FILTRO]
+            status_sel = st.selectbox("Status", status_labels, key="hist_orc_status")
+
         b1, b2, _ = st.columns([1, 1, 2])
         with b1:
-            buscar = st.button("Buscar", type="primary", use_container_width=True, key="hist_orc_buscar")
+            buscar = st.button(
+                "Buscar", type="primary", use_container_width=True, key="hist_orc_buscar"
+            )
         with b2:
             limpar = st.button("Limpar", use_container_width=True, key="hist_orc_limpar")
 
         if limpar:
-            st.session_state.hist_orc_termo = ""
+            for k in (
+                "hist_orc_termo",
+                "hist_orc_dia",
+                "hist_orc_mes",
+                "hist_orc_ano",
+                "hist_orc_cliente",
+                "hist_orc_status",
+            ):
+                if k in st.session_state:
+                    del st.session_state[k]
             st.session_state.hist_orc_lista = None
             st.session_state.hist_orc_detalhe_id = None
             st.rerun()
 
         if buscar or st.session_state.get("hist_orc_lista") is not None:
+            dia = None if dia_sel == "(todos)" else int(dia_sel)
+            mes = None if mes_sel == "(todos)" else int(mes_sel.split(" - ")[0])
+            ano = None if ano_sel == "(todos)" else int(ano_sel)
+            status_code = next(
+                (c for lab, c in _STATUS_FILTRO if lab == status_sel), None
+            )
             with st.spinner("Buscando orçamentos..."):
-                rows = buscar_orcamentos(conn, termo=termo or None)
+                rows = buscar_orcamentos(
+                    conn,
+                    termo=termo or None,
+                    cliente=cliente_filtro or None,
+                    status=status_code,
+                    dia=dia,
+                    mes=mes,
+                    ano=ano,
+                )
             st.session_state.hist_orc_lista = [dict(r) for r in rows]
 
         lista = st.session_state.get("hist_orc_lista")
         if lista is None:
-            st.info("Digite um termo (ou deixe em branco) e clique em **Buscar**.")
+            st.info("Ajuste os filtros (opcional) e clique em **Buscar**.")
             return
 
         if not lista:
@@ -79,26 +162,28 @@ def render_historico_orcamentos(conn) -> None:
                     "ID": r["id"],
                     "Número": r.get("numero") or "-",
                     "Cliente": r.get("cliente_nome") or "-",
-                    "Status": r.get("status") or "-",
+                    "Status": label_status(r.get("status")),
                     "Valor total": brl(r.get("valor_total") or 0),
+                    "Criado em": r.get("criado_em") or "-",
                     "Atualizado em": r.get("atualizado_em") or "-",
                 }
                 for r in lista
             ]
         )
-        st.caption("Clique na linha da grade para selecionar o orçamento.")
+        st.caption(f"{len(lista)} orçamento(s) — clique na linha para selecionar.")
         idx = dataframe_selecionavel(df, key="hist_orc_grid", height=360)
         orc_id = None
         if idx is not None:
             orc_id = int(lista[idx]["id"])
             st.success(
                 f"Selecionado: **{lista[idx].get('numero') or '-'}** — "
-                f"{lista[idx].get('cliente_nome') or '-'}"
+                f"{lista[idx].get('cliente_nome') or '-'} — "
+                f"Status: **{label_status(lista[idx].get('status'))}**"
             )
         else:
             st.info("Clique em uma linha para selecionar.")
 
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         with c1:
             if st.button("Abrir (somente leitura)", type="primary", use_container_width=True):
                 if orc_id is None:
@@ -106,12 +191,18 @@ def render_historico_orcamentos(conn) -> None:
                 else:
                     _abrir_readonly(conn, orc_id)
         with c2:
+            if st.button("Aprovado", use_container_width=True, key="hist_btn_aprovar"):
+                if orc_id is None:
+                    st.error("Selecione um orçamento na grade.")
+                else:
+                    _aprovar(conn, orc_id)
+        with c3:
             if st.button("Clonar como novo orçamento", use_container_width=True):
                 if orc_id is None:
                     st.error("Selecione um orçamento na grade.")
                 else:
                     _clonar(conn, orc_id)
-        with c3:
+        with c4:
             if st.button("Ver detalhes aqui", use_container_width=True):
                 if orc_id is None:
                     st.error("Selecione um orçamento na grade.")
@@ -124,6 +215,28 @@ def render_historico_orcamentos(conn) -> None:
         _painel_detalhe(conn, detalhe_id)
 
 
+def _aprovar(conn, orcamento_id: int) -> None:
+    orc = obter_orcamento(conn, orcamento_id)
+    if not orc:
+        st.error("Orçamento não encontrado.")
+        return
+    if (orc.get("status") or "").lower() == STATUS_APROVADO:
+        flash_sucesso("Este orçamento já está Aprovado.")
+        st.rerun()
+        return
+    with st.spinner("Atualizando status..."):
+        atualizar_status_orcamento(conn, orcamento_id, STATUS_APROVADO)
+    # Atualiza lista em memória
+    lista = st.session_state.get("hist_orc_lista") or []
+    for r in lista:
+        if r.get("id") == orcamento_id:
+            r["status"] = STATUS_APROVADO
+    flash_sucesso(
+        f"Orçamento {orc.get('numero') or orcamento_id} marcado como Aprovado."
+    )
+    st.rerun()
+
+
 def _abrir_readonly(conn, orcamento_id: int) -> None:
     with st.spinner("Carregando orçamento..."):
         orc = obter_orcamento(conn, orcamento_id)
@@ -134,7 +247,10 @@ def _abrir_readonly(conn, orcamento_id: int) -> None:
     st.session_state.proposta_readonly = True
     st.session_state.modo_form = None
     bump_form_seq()
-    flash_sucesso(f"Orçamento {orc.get('numero') or orcamento_id} aberto em modo consulta.")
+    flash_sucesso(
+        f"Orçamento {orc.get('numero') or orcamento_id} aberto em modo consulta "
+        f"(status: {label_status(orc.get('status'))})."
+    )
     ir_para("novo_orcamento")
 
 
@@ -165,7 +281,7 @@ def _painel_detalhe(conn, orcamento_id: int) -> None:
         st.markdown(
             f"**Cliente:** {orc.get('cliente_nome') or '-'}  \n"
             f"**CNPJ:** {orc.get('cliente_doc') or '-'}  \n"
-            f"**Status:** {orc.get('status')}  \n"
+            f"**Status:** {label_status(orc.get('status'))}  \n"
             f"**Valor total:** {brl(orc.get('valor_total') or 0)}  \n"
             f"**Lucro:** {brl(orc.get('lucro_total') or 0)}  \n"
             f"**Criado em:** {orc.get('criado_em')}  \n"
@@ -190,22 +306,22 @@ def _painel_detalhe(conn, orcamento_id: int) -> None:
                 use_container_width=True,
                 hide_index=True,
             )
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         with c1:
             if st.button("Abrir este (somente leitura)", key="det_abrir"):
                 _abrir_readonly(conn, orcamento_id)
         with c2:
+            if st.button("Aprovado", key="det_aprovar"):
+                _aprovar(conn, orcamento_id)
+        with c3:
             if st.button("Clonar este", key="det_clonar"):
                 _clonar(conn, orcamento_id)
-        with c3:
+        with c4:
             mostrar_mem = st.button("Ver memória de cálculo", key="det_memoria")
 
         if mostrar_mem or st.session_state.get("hist_orc_show_mem") == orcamento_id:
             st.session_state.hist_orc_show_mem = orcamento_id
             st.markdown("#### Memória de cálculo")
-            # Converte itens do banco para o formato da proposta (calculo/parametros)
-            from src.services.orcamentos import orcamento_para_proposta
-
             prop = orcamento_para_proposta(orc)
             itens_mem = prop.get("itens") or []
             m1, m2 = st.columns(2)
