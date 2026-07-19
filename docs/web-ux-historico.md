@@ -2,6 +2,9 @@
 
 ## Novo Orçamento
 - Menu → **NOVO ORÇAMENTO** inicia sempre limpo (como na v1)
+- Formulários **Inserir etiqueta** e **Inserir suprimento** abrem em popup (modal)
+- Botões da aplicação usam o mesmo relevo azul dos botões do menu
+- Campos de resultado (venda unitária/total, lucro, totais) ficam destacados
 - Formulário etiqueta/suprimento mostra em tempo real:
   - Venda unitária
   - Venda total do item
