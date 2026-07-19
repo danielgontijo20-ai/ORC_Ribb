@@ -75,8 +75,8 @@ def gerar_pdf_proposta(
 
     story = []
 
-    # Logo cabeçalho — ~2x o tamanho anterior (70×36 → 140×72)
-    logo_w, logo_h = 140.0, 72.0
+    # Logo cabeçalho — +50% sobre 140×72 (limitado à largura útil A4 ~180mm)
+    logo_w, logo_h = 180.0, 92.6
     if logo_cabecalho and Path(logo_cabecalho).exists():
         story.append(_logo_cell(logo_cabecalho, logo_w, logo_h))
         story.append(Spacer(1, 3 * mm))
