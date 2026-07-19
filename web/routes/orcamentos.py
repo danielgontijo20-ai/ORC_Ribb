@@ -45,6 +45,7 @@ from src.services.pdf_memoria import gerar_pdf_memoria
 from src.services.pdf_proposta import gerar_pdf_proposta
 from src.services.usuarios import usuario_tem_permissao
 from src.ui.formatters import brl, pct
+from src.ui.memoria_ui import coletar_secoes_memoria, resumo_memoria
 from web.deps import get_current_user
 from web import proposta_session as ps
 from web.logos import logo_url
@@ -113,11 +114,15 @@ def _ctx_novo(request: Request, conn, user, *, form_vals: dict | None = None) ->
 
     memoria = ps.get_memoria(request)
     memoria_linhas = []
+    memoria_lucro_total = 0.0
+    memoria_media_margem = 0.0
     if dialog == "memoria":
-        memoria_linhas = _montar_linhas_memoria(proposta, memoria)
+        memoria_linhas, memoria_lucro_total, memoria_media_margem = _montar_linhas_memoria(
+            proposta, memoria
+        )
 
     frete_exibicao = proposta.get("frete_tipo", "CIF")
-    if frete_exibicao == "Taxa" and proposta.get("frete_taxa"):
+    if frete_exibicao == "Taxa" and proposta.get("frete_taxa") not in (None, ""):
         frete_exibicao = f"Taxa: {proposta.get('frete_taxa')}"
 
     cats = _catalogos(conn)
@@ -143,6 +148,8 @@ def _ctx_novo(request: Request, conn, user, *, form_vals: dict | None = None) ->
         if dialog == "cliente"
         else 0,
         "memoria_linhas": memoria_linhas,
+        "memoria_lucro_total": memoria_lucro_total,
+        "memoria_media_margem": memoria_media_margem,
         "frete_exibicao": frete_exibicao,
         "form_vals": form_vals or {},
         "preview_item": None,
@@ -192,27 +199,31 @@ def _ctx_novo(request: Request, conn, user, *, form_vals: dict | None = None) ->
     }
 
 
-def _montar_linhas_memoria(proposta: dict, rascunho: dict | None) -> list[dict]:
-    linhas = []
-    for i, it in enumerate(proposta.get("itens") or [], start=1):
-        calc = it.get("calculo") or {}
-        params = it.get("parametros") or {}
-        linhas.append(
-            {
-                "titulo": f"Item {i:02d} — {it.get('descricao') or ''}",
-                "params": params,
-                "calc": calc,
-            }
-        )
-    if rascunho and rascunho.get("calc"):
-        linhas.append(
-            {
-                "titulo": "Rascunho (formulário atual)",
-                "params": rascunho.get("params") or {},
-                "calc": rascunho.get("calc") or {},
-            }
-        )
-    return linhas
+def _rascunho_memoria(rascunho: dict | None) -> dict | None:
+    """Normaliza rascunho da sessão web para o formato de memoria_ui/PDF."""
+    if not rascunho:
+        return None
+    resultado = rascunho.get("resultado")
+    if resultado is None:
+        resultado = rascunho.get("calc")
+    if resultado is None:
+        return None
+    return {
+        "tipo": rascunho.get("tipo"),
+        "params": rascunho.get("params") or {},
+        "resultado": resultado,
+    }
+
+
+def _montar_linhas_memoria(
+    proposta: dict, rascunho: dict | None
+) -> tuple[list[dict], float, float]:
+    """Seções formatadas (com R$) + lucro total e média de margem."""
+    rasc = _rascunho_memoria(rascunho)
+    itens = proposta.get("itens") or []
+    secoes = coletar_secoes_memoria(itens, rasc)
+    lucro, media = resumo_memoria(itens, rasc)
+    return secoes, lucro, media
 
 
 def _redirect_novo(query: str = "", *, anchor: str = "") -> RedirectResponse:
@@ -451,6 +462,8 @@ def salvar_condicoes(
     blocked = _block_readonly(request)
     if blocked:
         return blocked
+    frete = (frete_tipo or "CIF").strip() or "CIF"
+    taxa = frete_taxa.strip() if frete == "Taxa" else ""
     with connect() as conn:
         proposta = ps.get_proposta(request, conn)
         proposta.update(
@@ -459,8 +472,8 @@ def salvar_condicoes(
                 "validade_proposta": validade_proposta.strip(),
                 "prazo_pagamento": prazo_pagamento.strip(),
                 "prazo_entrega": prazo_entrega.strip(),
-                "frete_tipo": frete_tipo.strip() or "CIF",
-                "frete_taxa": frete_taxa.strip(),
+                "frete_tipo": frete,
+                "frete_taxa": taxa,
                 "impostos": impostos.strip(),
                 "informacoes_adicionais": informacoes_adicionais.strip(),
                 "orcamentista_nome": orcamentista_nome.strip(),
@@ -469,7 +482,16 @@ def salvar_condicoes(
                 "orcamentista_email": orcamentista_email.strip(),
             }
         )
-        ps.set_proposta(request, proposta)
+        # Com id no banco, set_proposta só guarda o id — precisa persistir.
+        if proposta.get("id"):
+            ps.persistir(
+                request,
+                conn,
+                proposta,
+                status=proposta.get("status") or STATUS_RASCUNHO,
+            )
+        else:
+            ps.set_proposta(request, proposta)
         ps.marcar_suja(request)
         ps.set_dialog(request, None)
         ps.flash_ok(request, "Condições gerais salvas com sucesso.")
@@ -595,7 +617,10 @@ async def inserir_etiqueta(request: Request):
             ps.set_memoria(request, rascunho_mem)
             proposta = ps.get_proposta(request, conn)
             ctx = _ctx_novo(request, conn, user, form_vals=form_vals)
-            ctx["memoria_linhas"] = _montar_linhas_memoria(proposta, rascunho_mem)
+            linhas, mem_lucro, mem_media = _montar_linhas_memoria(proposta, rascunho_mem)
+            ctx["memoria_linhas"] = linhas
+            ctx["memoria_lucro_total"] = mem_lucro
+            ctx["memoria_media_margem"] = mem_media
             ctx["preview_item"] = {
                 "descricao": descricao,
                 "unitario": resultado.preco_com_imposto,
@@ -1011,15 +1036,7 @@ def memoria_orcamento(request: Request, orcamento_id: int):
         if not orc:
             return HTMLResponse("Orçamento não encontrado.", status_code=404)
         prop = orcamento_para_proposta(orc)
-        linhas = []
-        for i, it in enumerate(prop.get("itens") or [], start=1):
-            linhas.append(
-                {
-                    "titulo": f"Item {i:02d} — {it.get('descricao') or ''}",
-                    "params": it.get("parametros") or {},
-                    "calc": it.get("calculo") or {},
-                }
-            )
+        linhas, mem_lucro, mem_media = _montar_linhas_memoria(prop, None)
     return render(
         request,
         "orcamento_memoria.html",
@@ -1028,7 +1045,10 @@ def memoria_orcamento(request: Request, orcamento_id: int):
             "orc": orc,
             "status_label": label_status(orc.get("status")),
             "memoria_linhas": linhas,
+            "memoria_lucro_total": mem_lucro,
+            "memoria_media_margem": mem_media,
             "brl": brl,
+            "pct": pct,
             "pode_pdf": usuario_tem_permissao(user, "orcamento.pdf"),
         },
     )

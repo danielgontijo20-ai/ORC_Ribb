@@ -48,7 +48,7 @@
   {% else %}
   <div class="nf-list">
     {% for nota in notas %}
-    <details class="nf-card" {% if loop.first %}open{% endif %}>
+    <details class="nf-card">
       <summary>
         <span class="nf-title">NF {{ nota.numero_nota }}</span>
         <span class="nf-meta">{{ nota.data_emissao or '-' }}</span>

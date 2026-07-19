@@ -224,7 +224,7 @@
       <h3 style="margin:0">Condições gerais de fornecimento</h3>
       <form method="post" action="/orcamentos/novo/dialog"><input type="hidden" name="dialog" value="fechar" /><button class="btn" type="submit">Fechar</button></form>
     </div>
-    <form method="post" action="/orcamentos/novo/condicoes">
+    <form method="post" action="/orcamentos/novo/condicoes" id="form-condicoes">
       <div class="form-grid">
         <div class="span-2"><label>Nome do solicitante</label><input name="solicitante" value="{{ proposta.solicitante or '' }}" /></div>
         <div><label>Validade da proposta</label><input name="validade_proposta" value="{{ proposta.validade_proposta or '' }}" /></div>
@@ -234,11 +234,15 @@
           <label>Frete</label>
           <select name="frete_tipo" id="frete-tipo">
             {% for f in ['CIF','FOB','Taxa'] %}
-            <option value="{{ f }}" {% if proposta.frete_tipo==f %}selected{% endif %}>{{ f }}</option>
+            <option value="{{ f }}" {% if (proposta.frete_tipo or 'CIF')==f %}selected{% endif %}>{{ f }}</option>
             {% endfor %}
           </select>
         </div>
-        <div class="span-2"><label>Valor/taxa do frete</label><input name="frete_taxa" value="{{ proposta.frete_taxa or '' }}" /></div>
+        <div class="span-2" id="frete-taxa-wrap">
+          <label>Valor/taxa do frete</label>
+          <input name="frete_taxa" id="frete-taxa" value="{{ proposta.frete_taxa if proposta.frete_taxa is not none else '' }}" {% if (proposta.frete_tipo or 'CIF') != 'Taxa' %}disabled{% endif %} />
+          <p class="muted" id="frete-taxa-hint" style="margin:0.35rem 0 0">{% if (proposta.frete_tipo or 'CIF') != 'Taxa' %}Disponível apenas quando Frete = Taxa.{% endif %}</p>
+        </div>
         <div class="span-2"><label>Impostos</label><input name="impostos" value="{{ proposta.impostos or '' }}" /></div>
         <div class="span-2"><label>Informações adicionais</label><textarea name="informacoes_adicionais" rows="3">{{ proposta.informacoes_adicionais or '' }}</textarea></div>
         <div><label>Nome do orçamentista</label><input name="orcamentista_nome" value="{{ proposta.orcamentista_nome or '' }}" /></div>
@@ -250,6 +254,22 @@
     </form>
   </div>
 </div>
+<script>
+(function () {
+  var sel = document.getElementById("frete-tipo");
+  var taxa = document.getElementById("frete-taxa");
+  var hint = document.getElementById("frete-taxa-hint");
+  if (!sel || !taxa) return;
+  function syncFreteTaxa() {
+    var isTaxa = sel.value === "Taxa";
+    taxa.disabled = !isTaxa;
+    if (!isTaxa) taxa.value = "";
+    if (hint) hint.textContent = isTaxa ? "" : "Disponível apenas quando Frete = Taxa.";
+  }
+  sel.addEventListener("change", syncFreteTaxa);
+  syncFreteTaxa();
+})();
+</script>
 {% endif %}
 
 {% if dialog == 'memoria' %}
@@ -259,24 +279,49 @@
       <h3 style="margin:0">Memória de cálculo</h3>
       <form method="post" action="/orcamentos/novo/dialog"><input type="hidden" name="dialog" value="fechar" /><button class="btn" type="submit">Fechar</button></form>
     </div>
+    <div class="mem-resumo metrics result-highlight">
+      <div><span class="muted">Soma dos lucros totais</span><strong>{{ brl(memoria_lucro_total) }}</strong></div>
+      <div><span class="muted">Média de margem total</span><strong>{{ pct(memoria_media_margem) }}</strong></div>
+    </div>
     {% if memoria_linhas %}
       {% for bloco in memoria_linhas %}
-      <h4>{{ bloco.titulo }}</h4>
-      <div class="form-grid">
-        <div>
-          <strong>Parâmetros</strong>
-          <ul class="mem-list">
-            {% for k,v in bloco.params.items() %}<li><span class="muted">{{ k }}:</span> {{ v }}</li>{% endfor %}
-          </ul>
-        </div>
-        <div>
-          <strong>Cálculo</strong>
-          <ul class="mem-list">
-            {% for k,v in bloco.calc.items() %}<li><span class="muted">{{ k }}:</span> {{ v }}</li>{% endfor %}
-          </ul>
+      <div class="mem-block">
+        <h4>{{ bloco.titulo }}</h4>
+        <div class="form-grid">
+          <div class="mem-table-wrap">
+            <div class="mem-table-caption">Parâmetros</div>
+            <table class="mem-table">
+              <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+              <tbody>
+                {% for campo, valor in bloco.params %}
+                <tr class="{% if loop.index0 % 2 == 0 %}mem-row-even{% else %}mem-row-odd{% endif %}">
+                  <td class="mem-campo">{{ campo }}</td>
+                  <td class="mem-valor">{{ valor }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="2" class="muted">Sem parâmetros.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <div class="mem-table-wrap">
+            <div class="mem-table-caption">Cálculo</div>
+            <table class="mem-table">
+              <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+              <tbody>
+                {% for campo, valor in bloco.calculo %}
+                <tr class="{% if loop.index0 % 2 == 0 %}mem-row-even{% else %}mem-row-odd{% endif %}">
+                  <td class="mem-campo">{{ campo }}</td>
+                  <td class="mem-valor">{{ valor }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="2" class="muted">Sem cálculo.</td></tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-      <hr />
       {% endfor %}
     {% else %}
       <p class="muted">Nenhum item na proposta e nenhum rascunho de cálculo. Insira itens ou use “Exibir memória” no formulário.</p>
@@ -334,7 +379,7 @@
           </div>
           <div>
             <label>Unidade de medida</label>
-            <input name="unidade" value="{{ form_vals.unidade or defaults.unidade_etiqueta }}" />
+            <input name="unidade" value="{{ form_vals.unidade if form_vals.unidade is defined and form_vals.unidade != '' else defaults.unidade_etiqueta }}" />
           </div>
           <div>
             <label>Tipo de caixa (nativo)</label>
@@ -350,7 +395,7 @@
           </div>
           <div>
             <label>Perda (nativo)</label>
-            <input name="perda" type="number" step="0.01" min="0" max="1" value="{{ form_vals.perda if form_vals.perda != '' else defaults.perda }}" />
+            <input name="perda" type="number" step="0.01" min="0" max="1" value="{{ form_vals.perda if form_vals.perda is defined and form_vals.perda != '' else defaults.perda }}" />
           </div>
           <div>
             <label>Qtd de caixas</label>
@@ -358,11 +403,11 @@
           </div>
           <div>
             <label>Lucro (nativo)</label>
-            <input name="lucro" type="number" step="0.05" min="0" max="5" value="{{ form_vals.lucro if form_vals.lucro != '' else defaults.lucro_etiqueta }}" />
+            <input name="lucro" type="number" step="0.05" min="0" max="5" value="{{ form_vals.lucro if form_vals.lucro is defined and form_vals.lucro != '' else defaults.lucro_etiqueta }}" />
           </div>
           <div class="span-2">
             <label>Valor do frete (nativo)</label>
-            <input name="frete" type="number" step="10" min="0" value="{{ form_vals.frete if form_vals.frete != '' else defaults.frete }}" />
+            <input name="frete" type="number" step="0.01" min="0" value="{{ form_vals.frete if form_vals.frete is defined and form_vals.frete != '' else defaults.frete }}" />
           </div>
         </div>
         <p class="muted preview-desc" id="etq-desc">Descrição gerada: —</p>
@@ -401,27 +446,27 @@
           </div>
           <div>
             <label>Valor do frete (nativo)</label>
-            <input name="frete" type="number" step="10" min="0" value="{{ form_vals.frete if form_vals.frete != '' else defaults.frete }}" />
+            <input name="frete" type="number" step="0.01" min="0" value="{{ form_vals.frete if form_vals.frete is defined and form_vals.frete != '' else defaults.frete }}" />
           </div>
           <div>
             <label>Custo</label>
-            <input name="custo" id="sup-custo" type="number" step="0.01" min="0" placeholder="(inserir)" value="{{ form_vals.custo or '' }}" />
+            <input name="custo" id="sup-custo" type="number" step="0.01" min="0" placeholder="(inserir)" value="{{ form_vals.custo if form_vals.custo is defined and form_vals.custo != '' else '' }}" />
           </div>
           <div>
             <label>Difal (nativo)</label>
             <select name="difal">
               <option value="(selecione)">(selecione)</option>
-              <option value="SIM" {% if (form_vals.difal or defaults.difal)=='SIM' %}selected{% endif %}>SIM</option>
-              <option value="NÃO" {% if (form_vals.difal or defaults.difal)=='NÃO' %}selected{% endif %}>NÃO</option>
+              <option value="SIM" {% if (form_vals.difal if form_vals.difal is defined else defaults.difal)=='SIM' %}selected{% endif %}>SIM</option>
+              <option value="NÃO" {% if (form_vals.difal if form_vals.difal is defined else defaults.difal)=='NÃO' %}selected{% endif %}>NÃO</option>
             </select>
           </div>
           <div>
             <label>Unidade de medida (nativo)</label>
-            <input name="unidade" value="{{ form_vals.unidade or defaults.unidade_suprimentos }}" />
+            <input name="unidade" value="{{ form_vals.unidade if form_vals.unidade is defined and form_vals.unidade != '' else defaults.unidade_suprimentos }}" />
           </div>
           <div>
             <label>Lucro (nativo)</label>
-            <input name="lucro" type="number" step="0.05" min="0" max="5" value="{{ form_vals.lucro if form_vals.lucro != '' else defaults.lucro_suprimentos }}" />
+            <input name="lucro" type="number" step="0.05" min="0" max="5" value="{{ form_vals.lucro if form_vals.lucro is defined and form_vals.lucro != '' else defaults.lucro_suprimentos }}" />
           </div>
           <div>
             <label>Quantidade</label>

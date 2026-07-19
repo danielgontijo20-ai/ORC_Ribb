@@ -12,6 +12,10 @@
     <span class="badge">{{ status_label }}</span> ·
     {{ orc.cliente_nome or '-' }}
   </p>
+  <div class="mem-resumo metrics result-highlight">
+    <div><span class="muted">Soma dos lucros totais</span><strong>{{ brl(memoria_lucro_total) }}</strong></div>
+    <div><span class="muted">Média de margem total</span><strong>{{ pct(memoria_media_margem) }}</strong></div>
+  </div>
   {% if pode_pdf %}
   <div class="btn-row">
     <a class="btn btn-primary" href="/orcamentos/{{ orc.id }}/memoria/pdf">Gerar PDF da memória</a>
@@ -21,29 +25,40 @@
 
 {% if memoria_linhas %}
   {% for bloco in memoria_linhas %}
-  <div class="card surface" id="mem-{{ loop.index }}">
+  <div class="card surface mem-block" id="mem-{{ loop.index }}">
     <h3>{{ bloco.titulo }}</h3>
     <div class="form-grid">
-      <div>
-        <strong>Parâmetros</strong>
-        <ul class="mem-list">
-          {% for k,v in bloco.params.items() %}<li><span class="muted">{{ k }}:</span> {{ v }}</li>{% endfor %}
-        </ul>
-      </div>
-      <div>
-        <strong>Cálculo</strong>
-        <ul class="mem-list">
-          {% for k,v in bloco.calc.items() %}
-          <li>
-            <span class="muted">{{ k }}:</span>
-            {% if v is number and ('custo' in k or 'preco' in k or 'preço' in k or 'frete' in k or 'lucro' in k or 'valor' in k or 'difal' in k) %}
-              {{ brl(v) }}
+      <div class="mem-table-wrap">
+        <div class="mem-table-caption">Parâmetros</div>
+        <table class="mem-table">
+          <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+          <tbody>
+            {% for campo, valor in bloco.params %}
+            <tr class="{% if loop.index0 % 2 == 0 %}mem-row-even{% else %}mem-row-odd{% endif %}">
+              <td class="mem-campo">{{ campo }}</td>
+              <td class="mem-valor">{{ valor }}</td>
+            </tr>
             {% else %}
-              {{ v }}
-            {% endif %}
-          </li>
-          {% endfor %}
-        </ul>
+            <tr><td colspan="2" class="muted">Sem parâmetros.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="mem-table-wrap">
+        <div class="mem-table-caption">Cálculo</div>
+        <table class="mem-table">
+          <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+          <tbody>
+            {% for campo, valor in bloco.calculo %}
+            <tr class="{% if loop.index0 % 2 == 0 %}mem-row-even{% else %}mem-row-odd{% endif %}">
+              <td class="mem-campo">{{ campo }}</td>
+              <td class="mem-valor">{{ valor }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="2" class="muted">Sem cálculo.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
