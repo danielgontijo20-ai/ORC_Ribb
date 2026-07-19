@@ -41,40 +41,126 @@ def _bump_cad_seq() -> None:
     """Invalida select + campos (novas keys = formulário vazio em (novo))."""
     st.session_state.cad_form_seq = _cad_seq() + 1
     for k in list(st.session_state.keys()):
-        if isinstance(k, str) and k.endswith("_grid_last"):
+        if isinstance(k, str) and (
+            k.endswith("_grid_last")
+            or k.endswith("_grid")
+            or k.startswith("cad_editing_")
+            or k.startswith("_last_modo_")
+        ):
             del st.session_state[k]
 
 
+def _entrar_tela(tela: str) -> None:
+    """Abre subtela limpa: (novo), sem seleção na grade, sem modo edição."""
+    st.session_state.cadastro_tela = tela
+    _bump_cad_seq()
+    st.session_state[f"cad_editing_{tela}"] = False
+    st.rerun()
+
+
 def _sel_key(base: str) -> str:
-    """Key do selectbox inclui a sequência — após salvar volta a (novo)."""
     return f"{base}_{_cad_seq()}"
 
 
 def _form_key(prefix: str, atual) -> str:
-    """Chave dinâmica: recarrega campos ao trocar registro ou após salvar."""
     rid = atual["id"] if atual is not None else "novo"
     return f"{prefix}_{rid}_{_cad_seq()}"
 
 
 def _init_widget(key: str, default) -> None:
-    """Define default só na 1ª criação da key (evita value= + key= do Streamlit)."""
     if key not in st.session_state:
         st.session_state[key] = default
 
 
-def _text_input(label: str, key: str, default: str = "", **kwargs):
+def _text_input(label: str, key: str, default: str = "", *, disabled: bool = False, **kwargs):
     _init_widget(key, default)
-    return st.text_input(label, key=key, **kwargs)
+    return st.text_input(label, key=key, disabled=disabled, **kwargs)
 
 
-def _number_input(label: str, key: str, default: float = 0.0, **kwargs):
+def _number_input(
+    label: str, key: str, default: float = 0.0, *, disabled: bool = False, **kwargs
+):
     _init_widget(key, float(default) if default is not None else 0.0)
-    return st.number_input(label, key=key, **kwargs)
+    return st.number_input(label, key=key, disabled=disabled, **kwargs)
 
 
-def _text_area(label: str, key: str, default: str = "", **kwargs):
+def _text_area(label: str, key: str, default: str = "", *, disabled: bool = False, **kwargs):
     _init_widget(key, default)
-    return st.text_area(label, key=key, **kwargs)
+    return st.text_area(label, key=key, disabled=disabled, **kwargs)
+
+
+def _edit_key(tela: str) -> str:
+    return f"cad_editing_{tela}"
+
+
+def _is_editing(tela: str) -> bool:
+    return bool(st.session_state.get(_edit_key(tela), False))
+
+
+def _set_editing(tela: str, on: bool) -> None:
+    st.session_state[_edit_key(tela)] = on
+
+
+def _campos_bloqueados(tela: str, atual) -> bool:
+    """Registro existente fica bloqueado até clicar em Editar cadastro."""
+    if atual is None:
+        return False
+    return not _is_editing(tela)
+
+
+def _ao_mudar_registro(tela: str, modo: str) -> None:
+    """Troca de registro: existente = visualização; (novo) = edição liberada."""
+    last_key = f"_last_modo_{tela}"
+    if st.session_state.get(last_key) != modo:
+        st.session_state[last_key] = modo
+        _set_editing(tela, modo == "(novo)")
+
+
+def _botoes_crud(
+    tela: str,
+    *,
+    atual,
+    on_salvar,
+    on_excluir=None,
+    label_salvar: str = "Salvar",
+) -> None:
+    bloqueado = _campos_bloqueados(tela, atual)
+    if atual is None:
+        if st.button(label_salvar, type="primary", key=f"btn_salvar_{tela}"):
+            on_salvar()
+        return
+
+    if bloqueado:
+        b1, b2, b3 = st.columns(3)
+        with b1:
+            if st.button("Editar cadastro", type="primary", key=f"btn_editar_{tela}"):
+                _set_editing(tela, True)
+                st.rerun()
+        with b2:
+            if on_excluir and st.button("Excluir", key=f"btn_excluir_{tela}"):
+                on_excluir()
+        with b3:
+            st.caption("Campos bloqueados — clique em Editar para alterar.")
+    else:
+        b1, b2, b3 = st.columns(3)
+        with b1:
+            if st.button(label_salvar, type="primary", key=f"btn_salvar_{tela}"):
+                on_salvar()
+        with b2:
+            if st.button("Cancelar edição", key=f"btn_cancel_{tela}"):
+                _set_editing(tela, False)
+                _bump_cad_seq()
+                # Mantém o mesmo registro selecionado após cancelar
+                if atual is not None:
+                    # caller deve repor o select — usamos id no session
+                    st.session_state["_restore_sel"] = {
+                        "tela": tela,
+                        "id": atual["id"],
+                    }
+                st.rerun()
+        with b3:
+            if on_excluir and st.button("Excluir", key=f"btn_excluir_{tela}"):
+                on_excluir()
 
 
 def render_cadastros(conn) -> None:
@@ -83,9 +169,9 @@ def render_cadastros(conn) -> None:
         st.markdown('<p class="orc-title">Cadastros</p>', unsafe_allow_html=True)
     with top2:
         if st.button("← Voltar", key="cad_voltar"):
-            # Subcadastro → hub; hub → menu (um único botão)
             if st.session_state.get("cadastro_tela", "hub") != "hub":
                 st.session_state.cadastro_tela = "hub"
+                _bump_cad_seq()
                 st.rerun()
             voltar()
 
@@ -122,105 +208,142 @@ def _hub() -> None:
     for i, (label, key) in enumerate(opts):
         with cols[i % 3]:
             if st.button(label, use_container_width=True, key=f"hub_{key}"):
-                st.session_state.cadastro_tela = key
-                st.rerun()
+                _entrar_tela(key)
 
 
-def _sync_select_from_grid(sel_base: str, label: str) -> None:
-    """Ao clicar na grade, atualiza o select e recarrega os campos uma vez."""
+def _sync_select_from_grid(sel_base: str, label: str, tela: str) -> None:
+    """Ao clicar na grade, carrega o registro em modo visualização."""
     if st.session_state.get(f"_{sel_base}_grid_last") == label:
         return
     st.session_state[f"_{sel_base}_grid_last"] = label
     _bump_cad_seq()
     st.session_state[_sel_key(sel_base)] = label
+    _set_editing(tela, False)
+    st.session_state[f"_last_modo_{tela}"] = label
     st.rerun()
 
 
+def _restaurar_select_apos_cancel(sel_base: str, rows, label_fn) -> None:
+    """Após cancelar edição, mantém o registro na combo."""
+    restore = st.session_state.pop("_restore_sel", None)
+    if not restore:
+        return
+    rid = restore.get("id")
+    for r in rows:
+        if r["id"] == rid:
+            st.session_state[_sel_key(sel_base)] = label_fn(r)
+            st.session_state[f"_last_modo_{restore.get('tela')}"] = label_fn(r)
+            break
+
+
 def _clientes(conn) -> None:
+    tela = "clientes"
     st.subheader("Clientes")
     termo = st.text_input("Pesquisar cliente")
     total = contar_clientes(conn, termo=termo or None)
     rows = buscar_clientes(conn, termo=termo or None, limite=None)
-    st.caption(f"{total} cliente(s) encontrado(s) — clique na linha para editar")
+    st.caption(f"{total} cliente(s) — clique na linha para selecionar")
     ids = {f"{r['id']} - {r['nome']}": r["id"] for r in rows}
+    _restaurar_select_apos_cancel("cli_sel", rows, lambda r: f"{r['id']} - {r['nome']}")
     if rows:
         df = pd.DataFrame([dict(r) for r in rows])
-        idx = dataframe_selecionavel(df, key="cli_grid", height=320)
+        idx = dataframe_selecionavel(df, key=f"cli_grid_{_cad_seq()}", height=320)
         if idx is not None:
-            _sync_select_from_grid("cli_sel", f"{rows[idx]['id']} - {rows[idx]['nome']}")
+            _sync_select_from_grid(
+                "cli_sel", f"{rows[idx]['id']} - {rows[idx]['nome']}", tela
+            )
 
-    st.markdown("#### Inserir / editar")
+    st.markdown("#### Registro")
     modo = st.selectbox(
         "Registro",
         ["(novo)"] + list(ids.keys()),
         key=_sel_key("cli_sel"),
     )
-    atual = None
-    if modo != "(novo)":
-        atual = next(r for r in rows if r["id"] == ids[modo])
+    _ao_mudar_registro(tela, modo)
+    atual = next((r for r in rows if modo != "(novo)" and r["id"] == ids[modo]), None)
+    bloqueado = _campos_bloqueados(tela, atual)
 
-    nome = _text_input("Nome", _form_key("cli_nome", atual), atual["nome"] if atual else "")
+    nome = _text_input(
+        "Nome", _form_key("cli_nome", atual), atual["nome"] if atual else "", disabled=bloqueado
+    )
     cnpj = _text_input(
         "CNPJ/CPF",
         _form_key("cli_cnpj", atual),
         atual["cnpj_cpf"] if atual else "",
+        disabled=bloqueado,
     )
     uf = _text_input(
         "UF",
         _form_key("cli_uf", atual),
         (atual["uf"] if atual and atual["uf"] else ""),
+        disabled=bloqueado,
     )
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("Salvar cliente", type="primary"):
-            if not nome.strip() or not cnpj.strip():
-                st.error("Nome e CNPJ/CPF são obrigatórios.")
-            else:
-                upsert_cliente(
-                    conn,
-                    cnpj_cpf=cnpj.strip(),
-                    nome=nome.strip(),
-                    uf=uf.strip() or None,
-                    cliente_id=atual["id"] if atual else None,
-                )
-                _bump_cad_seq()
-                flash_sucesso("Cliente salvo com sucesso. Formulário pronto para nova inserção.")
-                st.rerun()
-    with c2:
-        if atual and st.button("Excluir cliente"):
-            excluir_cliente(conn, atual["id"])
-            _bump_cad_seq()
-            flash_sucesso("Cliente excluído com sucesso.")
-            st.rerun()
+
+    def _salvar():
+        if not nome.strip() or not cnpj.strip():
+            st.error("Nome e CNPJ/CPF são obrigatórios.")
+            return
+        upsert_cliente(
+            conn,
+            cnpj_cpf=cnpj.strip(),
+            nome=nome.strip(),
+            uf=uf.strip() or None,
+            cliente_id=atual["id"] if atual else None,
+        )
+        _bump_cad_seq()
+        flash_sucesso("Cliente salvo com sucesso.")
+        st.rerun()
+
+    def _excluir():
+        excluir_cliente(conn, atual["id"])
+        _bump_cad_seq()
+        flash_sucesso("Cliente excluído com sucesso.")
+        st.rerun()
+
+    _botoes_crud(tela, atual=atual, on_salvar=_salvar, on_excluir=_excluir if atual else None)
 
 
 def _materias(conn) -> None:
+    tela = "materias"
     st.subheader("Matéria-prima")
     st.info(
         "Campo **nome de exibição mp ORC** é usado na descrição automática do item na proposta."
     )
     rows = listar_materias_primas(conn)
-    st.caption("Clique na linha da grade para editar o registro.")
+    st.caption("Clique na linha da grade para selecionar o registro.")
     ids = {f"{r['id']} - {r['nome']}": r["id"] for r in rows}
+    _restaurar_select_apos_cancel("mp_sel", rows, lambda r: f"{r['id']} - {r['nome']}")
     if rows:
         idx = dataframe_selecionavel(
-            pd.DataFrame([dict(r) for r in rows]), key="mp_grid", height=280
+            pd.DataFrame([dict(r) for r in rows]),
+            key=f"mp_grid_{_cad_seq()}",
+            height=280,
         )
         if idx is not None:
-            _sync_select_from_grid("mp_sel", f"{rows[idx]['id']} - {rows[idx]['nome']}")
+            _sync_select_from_grid(
+                "mp_sel", f"{rows[idx]['id']} - {rows[idx]['nome']}", tela
+            )
 
     modo = st.selectbox(
         "Registro",
         ["(novo)"] + list(ids.keys()),
         key=_sel_key("mp_sel"),
     )
+    _ao_mudar_registro(tela, modo)
     atual = next((r for r in rows if modo != "(novo)" and r["id"] == ids[modo]), None)
+    bloqueado = _campos_bloqueados(tela, atual)
 
-    codigo = _text_input("Código", _form_key("mp_cod", atual), atual["codigo"] if atual else "")
+    codigo = _text_input(
+        "Código",
+        _form_key("mp_cod", atual),
+        atual["codigo"] if atual else "",
+        disabled=bloqueado,
+    )
     nome = _text_input(
         "Matéria-prima",
         _form_key("mp_nome", atual),
         atual["nome"] if atual else "",
+        disabled=bloqueado,
     )
     nome_orc_default = ""
     if atual:
@@ -229,68 +352,98 @@ def _materias(conn) -> None:
         "Nome de exibição mp ORC",
         _form_key("mp_orc", atual),
         nome_orc_default,
+        disabled=bloqueado,
     )
     preco = _number_input(
         "Preço de compra",
         _form_key("mp_preco", atual),
         float(atual["preco_compra"] or 0) if atual else 0.0,
         step=0.01,
+        disabled=bloqueado,
     )
     custo = _number_input(
         "Custo",
         _form_key("mp_custo", atual),
         float(atual["custo"]) if atual else 0.0,
         step=0.01,
+        disabled=bloqueado,
     )
     obs = _text_area(
         "Observações",
         _form_key("mp_obs", atual),
         (atual["observacoes"] if atual and atual["observacoes"] else ""),
+        disabled=bloqueado,
     )
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("Salvar matéria-prima", type="primary"):
-            salvar_materia(
-                conn,
-                codigo=codigo.strip(),
-                nome=nome.strip(),
-                nome_exibicao_orc=nome_orc.strip() or nome.strip(),
-                preco_compra=preco,
-                custo=custo,
-                observacoes=obs or None,
-                materia_id=atual["id"] if atual else None,
-            )
-            _bump_cad_seq()
-            flash_sucesso("Matéria-prima salva com sucesso. Formulário limpo.")
-            st.rerun()
-    with c2:
-        if atual and st.button("Excluir matéria-prima"):
-            excluir_materia(conn, atual["id"])
-            _bump_cad_seq()
-            flash_sucesso("Matéria-prima excluída com sucesso.")
-            st.rerun()
+
+    def _salvar():
+        salvar_materia(
+            conn,
+            codigo=codigo.strip(),
+            nome=nome.strip(),
+            nome_exibicao_orc=nome_orc.strip() or nome.strip(),
+            preco_compra=preco,
+            custo=custo,
+            observacoes=obs or None,
+            materia_id=atual["id"] if atual else None,
+        )
+        _bump_cad_seq()
+        flash_sucesso("Matéria-prima salva com sucesso.")
+        st.rerun()
+
+    def _excluir():
+        excluir_materia(conn, atual["id"])
+        _bump_cad_seq()
+        flash_sucesso("Matéria-prima excluída com sucesso.")
+        st.rerun()
+
+    _botoes_crud(
+        tela,
+        atual=atual,
+        on_salvar=_salvar,
+        on_excluir=_excluir if atual else None,
+        label_salvar="Salvar matéria-prima",
+    )
 
 
 def _tubetes(conn) -> None:
+    tela = "tubetes"
     st.subheader("Tubetes")
     st.info("Campo **nome de exibição tubete ORC** entra na descrição automática.")
     rows = listar_tubetes(conn)
-    st.caption("Clique na linha da grade para editar o registro.")
+    st.caption("Clique na linha da grade para selecionar o registro.")
     ids = {f"{r['id']} - {r['nome']}": r["id"] for r in rows}
+    _restaurar_select_apos_cancel("tub_sel", rows, lambda r: f"{r['id']} - {r['nome']}")
     if rows:
         idx = dataframe_selecionavel(
-            pd.DataFrame([dict(r) for r in rows]), key="tub_grid", height=280
+            pd.DataFrame([dict(r) for r in rows]),
+            key=f"tub_grid_{_cad_seq()}",
+            height=280,
         )
         if idx is not None:
-            _sync_select_from_grid("tub_sel", f"{rows[idx]['id']} - {rows[idx]['nome']}")
+            _sync_select_from_grid(
+                "tub_sel", f"{rows[idx]['id']} - {rows[idx]['nome']}", tela
+            )
     modo = st.selectbox(
         "Registro",
         ["(novo)"] + list(ids.keys()),
         key=_sel_key("tub_sel"),
     )
+    _ao_mudar_registro(tela, modo)
     atual = next((r for r in rows if modo != "(novo)" and r["id"] == ids[modo]), None)
-    codigo = _text_input("Código", _form_key("tub_cod", atual), atual["codigo"] if atual else "")
-    nome = _text_input("Tubete", _form_key("tub_nome", atual), atual["nome"] if atual else "")
+    bloqueado = _campos_bloqueados(tela, atual)
+
+    codigo = _text_input(
+        "Código",
+        _form_key("tub_cod", atual),
+        atual["codigo"] if atual else "",
+        disabled=bloqueado,
+    )
+    nome = _text_input(
+        "Tubete",
+        _form_key("tub_nome", atual),
+        atual["nome"] if atual else "",
+        disabled=bloqueado,
+    )
     nome_orc_default = ""
     if atual:
         nome_orc_default = atual["nome_exibicao_orc"] or atual["nome"] or ""
@@ -298,120 +451,168 @@ def _tubetes(conn) -> None:
         "Nome de exibição tubete ORC",
         _form_key("tub_orc", atual),
         nome_orc_default,
+        disabled=bloqueado,
     )
     preco = _number_input(
         "Preço compra",
         _form_key("tub_preco", atual),
         float(atual["preco_compra"] or 0) if atual else 0.0,
         step=0.01,
+        disabled=bloqueado,
     )
     custo = _number_input(
         "Custo",
         _form_key("tub_custo", atual),
         float(atual["custo"]) if atual else 0.0,
         step=0.01,
+        disabled=bloqueado,
     )
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("Salvar tubete", type="primary"):
-            salvar_tubete(
-                conn,
-                codigo=codigo.strip(),
-                nome=nome.strip(),
-                nome_exibicao_orc=nome_orc.strip() or nome.strip(),
-                preco_compra=preco,
-                custo=custo,
-                tubete_id=atual["id"] if atual else None,
-            )
-            _bump_cad_seq()
-            flash_sucesso("Tubete salvo com sucesso. Formulário limpo.")
-            st.rerun()
-    with c2:
-        if atual and st.button("Excluir tubete"):
-            excluir_tubete(conn, atual["id"])
-            _bump_cad_seq()
-            flash_sucesso("Tubete excluído com sucesso.")
-            st.rerun()
+
+    def _salvar():
+        salvar_tubete(
+            conn,
+            codigo=codigo.strip(),
+            nome=nome.strip(),
+            nome_exibicao_orc=nome_orc.strip() or nome.strip(),
+            preco_compra=preco,
+            custo=custo,
+            tubete_id=atual["id"] if atual else None,
+        )
+        _bump_cad_seq()
+        flash_sucesso("Tubete salvo com sucesso.")
+        st.rerun()
+
+    def _excluir():
+        excluir_tubete(conn, atual["id"])
+        _bump_cad_seq()
+        flash_sucesso("Tubete excluído com sucesso.")
+        st.rerun()
+
+    _botoes_crud(
+        tela,
+        atual=atual,
+        on_salvar=_salvar,
+        on_excluir=_excluir if atual else None,
+        label_salvar="Salvar tubete",
+    )
 
 
 def _caixas(conn) -> None:
+    tela = "caixas"
     st.subheader("Caixas")
     rows = listar_caixas(conn)
-    st.caption("Clique na linha da grade para editar o registro.")
+    st.caption("Clique na linha da grade para selecionar o registro.")
     ids = {f"{r['id']} - {r['nome']}": r["id"] for r in rows}
+    _restaurar_select_apos_cancel("cx_sel", rows, lambda r: f"{r['id']} - {r['nome']}")
     if rows:
         idx = dataframe_selecionavel(
-            pd.DataFrame([dict(r) for r in rows]), key="cx_grid", height=280
+            pd.DataFrame([dict(r) for r in rows]),
+            key=f"cx_grid_{_cad_seq()}",
+            height=280,
         )
         if idx is not None:
-            _sync_select_from_grid("cx_sel", f"{rows[idx]['id']} - {rows[idx]['nome']}")
+            _sync_select_from_grid(
+                "cx_sel", f"{rows[idx]['id']} - {rows[idx]['nome']}", tela
+            )
     modo = st.selectbox(
         "Registro",
         ["(novo)"] + list(ids.keys()),
         key=_sel_key("cx_sel"),
     )
+    _ao_mudar_registro(tela, modo)
     atual = next((r for r in rows if modo != "(novo)" and r["id"] == ids[modo]), None)
-    codigo = _text_input("Código", _form_key("cx_cod", atual), atual["codigo"] if atual else "")
-    nome = _text_input("Caixa", _form_key("cx_nome", atual), atual["nome"] if atual else "")
+    bloqueado = _campos_bloqueados(tela, atual)
+
+    codigo = _text_input(
+        "Código",
+        _form_key("cx_cod", atual),
+        atual["codigo"] if atual else "",
+        disabled=bloqueado,
+    )
+    nome = _text_input(
+        "Caixa",
+        _form_key("cx_nome", atual),
+        atual["nome"] if atual else "",
+        disabled=bloqueado,
+    )
     custo = _number_input(
         "Custo",
         _form_key("cx_custo", atual),
         float(atual["custo"]) if atual else 5.0,
         step=0.01,
+        disabled=bloqueado,
     )
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("Salvar caixa", type="primary"):
-            salvar_caixa(
-                conn,
-                codigo=codigo.strip(),
-                nome=nome.strip(),
-                custo=custo,
-                caixa_id=atual["id"] if atual else None,
-            )
-            _bump_cad_seq()
-            flash_sucesso("Caixa salva com sucesso. Formulário limpo.")
-            st.rerun()
-    with c2:
-        if atual and st.button("Excluir caixa"):
-            excluir_caixa(conn, atual["id"])
-            _bump_cad_seq()
-            flash_sucesso("Caixa excluída com sucesso.")
-            st.rerun()
+
+    def _salvar():
+        salvar_caixa(
+            conn,
+            codigo=codigo.strip(),
+            nome=nome.strip(),
+            custo=custo,
+            caixa_id=atual["id"] if atual else None,
+        )
+        _bump_cad_seq()
+        flash_sucesso("Caixa salva com sucesso.")
+        st.rerun()
+
+    def _excluir():
+        excluir_caixa(conn, atual["id"])
+        _bump_cad_seq()
+        flash_sucesso("Caixa excluída com sucesso.")
+        st.rerun()
+
+    _botoes_crud(
+        tela,
+        atual=atual,
+        on_salvar=_salvar,
+        on_excluir=_excluir if atual else None,
+        label_salvar="Salvar caixa",
+    )
 
 
 def _facas(conn) -> None:
+    tela = "facas"
     st.subheader("Facas")
     st.info(
         "Campo **nome de exibição faca ORC** entra na descrição automática. "
         "A área é recalculada automaticamente."
     )
     rows = listar_facas(conn)
-    st.caption("Clique na linha da grade para editar o registro.")
+    st.caption("Clique na linha da grade para selecionar o registro.")
     ids = {f"{r['id']} - {r['tipo_faca']}": r["id"] for r in rows}
+    _restaurar_select_apos_cancel(
+        "faca_sel", rows, lambda r: f"{r['id']} - {r['tipo_faca']}"
+    )
     if rows:
         idx = dataframe_selecionavel(
-            pd.DataFrame([dict(r) for r in rows]), key="faca_grid", height=280
+            pd.DataFrame([dict(r) for r in rows]),
+            key=f"faca_grid_{_cad_seq()}",
+            height=280,
         )
         if idx is not None:
             _sync_select_from_grid(
-                "faca_sel", f"{rows[idx]['id']} - {rows[idx]['tipo_faca']}"
+                "faca_sel", f"{rows[idx]['id']} - {rows[idx]['tipo_faca']}", tela
             )
     modo = st.selectbox(
         "Registro",
         ["(novo)"] + list(ids.keys()),
         key=_sel_key("faca_sel"),
     )
+    _ao_mudar_registro(tela, modo)
     atual = next((r for r in rows if modo != "(novo)" and r["id"] == ids[modo]), None)
+    bloqueado = _campos_bloqueados(tela, atual)
+
     codigo = _text_input(
         "Código",
         _form_key("faca_cod", atual),
         str(atual["codigo"]) if atual else "",
+        disabled=bloqueado,
     )
     tipo = _text_input(
         "Tipo faca",
         _form_key("faca_tipo", atual),
         atual["tipo_faca"] if atual else "",
+        disabled=bloqueado,
     )
     nome_orc_default = ""
     if atual:
@@ -420,6 +621,7 @@ def _facas(conn) -> None:
         "Nome de exibição faca ORC",
         _form_key("faca_orc", atual),
         nome_orc_default,
+        disabled=bloqueado,
     )
     c1, c2 = st.columns(2)
     with c1:
@@ -428,12 +630,14 @@ def _facas(conn) -> None:
             _form_key("faca_larg", atual),
             float(atual["largura"]) if atual else 0.1,
             format="%.6f",
+            disabled=bloqueado,
         )
         altura = _number_input(
             "Altura",
             _form_key("faca_alt", atual),
             float(atual["altura"]) if atual else 0.1,
             format="%.6f",
+            disabled=bloqueado,
         )
     with c2:
         gap_l = _number_input(
@@ -441,36 +645,45 @@ def _facas(conn) -> None:
             _form_key("faca_gapl", atual),
             float(atual["gap_lateral"]) if atual else 0.006,
             format="%.6f",
+            disabled=bloqueado,
         )
         gap_v = _number_input(
             "Gap vertical",
             _form_key("faca_gapv", atual),
             float(atual["gap_vertical"] or 0) if atual else 0.003,
             format="%.6f",
+            disabled=bloqueado,
         )
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("Salvar faca", type="primary"):
-            salvar_faca(
-                conn,
-                codigo=codigo.strip(),
-                tipo_faca=tipo.strip(),
-                nome_exibicao_orc=nome_orc.strip() or tipo.strip(),
-                largura=largura,
-                altura=altura,
-                gap_lateral=gap_l,
-                gap_vertical=gap_v,
-                faca_id=atual["id"] if atual else None,
-            )
-            _bump_cad_seq()
-            flash_sucesso("Faca salva com sucesso. Formulário limpo.")
-            st.rerun()
-    with c2:
-        if atual and st.button("Excluir faca"):
-            excluir_faca(conn, atual["id"])
-            _bump_cad_seq()
-            flash_sucesso("Faca excluída com sucesso.")
-            st.rerun()
+
+    def _salvar():
+        salvar_faca(
+            conn,
+            codigo=codigo.strip(),
+            tipo_faca=tipo.strip(),
+            nome_exibicao_orc=nome_orc.strip() or tipo.strip(),
+            largura=largura,
+            altura=altura,
+            gap_lateral=gap_l,
+            gap_vertical=gap_v,
+            faca_id=atual["id"] if atual else None,
+        )
+        _bump_cad_seq()
+        flash_sucesso("Faca salva com sucesso.")
+        st.rerun()
+
+    def _excluir():
+        excluir_faca(conn, atual["id"])
+        _bump_cad_seq()
+        flash_sucesso("Faca excluída com sucesso.")
+        st.rerun()
+
+    _botoes_crud(
+        tela,
+        atual=atual,
+        on_salvar=_salvar,
+        on_excluir=_excluir if atual else None,
+        label_salvar="Salvar faca",
+    )
 
 
 def _valores_nativos(conn) -> None:

@@ -648,28 +648,31 @@ def _painel_proposta(conn, cfg, proposta, *, readonly: bool = False) -> None:
     with preview:
         st.markdown("#### Prévia da proposta")
 
-        # Logo à esquerda na mesma linha das informações (como no PDF)
+        # Logo à esquerda; abaixo: empresa (esq.) | orçamento/cliente (dir.)
         logo = cfg.get("logo_cabecalho") or ""
-        c_logo, c_info = st.columns([1, 1.6])
-        with c_logo:
-            if logo and Path(logo).exists():
-                st.image(logo, width=240)
-        with c_info:
-            st.markdown(
-                f"**{cfg.get('empresa_nome') or '(Nome da empresa — preencher em Valores Nativos)'}**  \n"
-                f"CNPJ: {cfg.get('empresa_cnpj') or '-'}  \n"
-                f"Tel: {cfg.get('empresa_telefone') or '-'}  \n"
-                f"E-mail: {cfg.get('empresa_email') or '-'}"
-            )
-        st.divider()
+        if logo and Path(logo).exists():
+            st.image(logo, width=240)
 
         cliente = proposta.get("cliente") or {}
-        st.markdown(
-            f"**Número do Orçamento:** {proposta.get('numero') or '(será gerado ao inserir o 1º item)'}  \n"
-            f"**Nome do Cliente:** {cliente.get('nome') or '-'}  \n"
-            f"**CNPJ do Cliente:** {cliente.get('cnpj_cpf') or '-'}  \n"
-            f"**Aos cuidados do(a) Sr.(a):** {proposta.get('solicitante') or '-'}"
-        )
+        col_emp, col_cli = st.columns(2)
+        with col_emp:
+            st.markdown(
+                f"**Nome da empresa:** {cfg.get('empresa_nome') or '-'}  \n"
+                f"**CNPJ da empresa:** {cfg.get('empresa_cnpj') or '-'}  \n"
+                f"**Telefone da empresa:** {cfg.get('empresa_telefone') or '-'}  \n"
+                f"**E-mail da empresa:** {cfg.get('empresa_email') or '-'}"
+            )
+        with col_cli:
+            st.markdown(
+                f"<div style='text-align:right'>"
+                f"<b>Número do Orçamento:</b> {proposta.get('numero') or '(será gerado ao inserir o 1º item)'}<br/>"
+                f"<b>Nome do Cliente:</b> {cliente.get('nome') or '-'}<br/>"
+                f"<b>CNPJ do Cliente:</b> {cliente.get('cnpj_cpf') or '-'}<br/>"
+                f"<b>Aos cuidados do(a) Sr.(a):</b> {proposta.get('solicitante') or '-'}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+        st.divider()
 
         itens = proposta.get("itens") or []
         valor_total, lucro_total, frete_total = totais_proposta()
@@ -733,11 +736,9 @@ def _painel_proposta(conn, cfg, proposta, *, readonly: bool = False) -> None:
             f"**Observações Adicionais:**  \n{proposta.get('informacoes_adicionais')}"
         )
 
+        # Rodapé: orçamentista à esquerda, logo alinhada à margem direita
         logo_r = cfg.get("logo_rodape") or ""
-        f_logo, f_info = st.columns([1, 1.6])
-        with f_logo:
-            if logo_r and Path(logo_r).exists():
-                st.image(logo_r, width=200)
+        f_info, f_sp, f_logo = st.columns([1.4, 0.4, 1])
         with f_info:
             st.markdown(
                 f"{proposta.get('orcamentista_nome') or '-'}  \n"
@@ -745,6 +746,9 @@ def _painel_proposta(conn, cfg, proposta, *, readonly: bool = False) -> None:
                 f"{proposta.get('orcamentista_telefone') or '-'}  \n"
                 f"{proposta.get('orcamentista_email') or '-'}"
             )
+        with f_logo:
+            if logo_r and Path(logo_r).exists():
+                st.image(logo_r, width=200)
 
         if not readonly and st.button(
             "Limpar orçamento (começar do zero)", key="limpar_preview"

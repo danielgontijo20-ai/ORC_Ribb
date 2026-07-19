@@ -6,6 +6,7 @@ from io import BytesIO
 from pathlib import Path
 
 from reportlab.lib import colors
+from reportlab.lib.enums import TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -52,11 +53,13 @@ def gerar_pdf_proposta(
         bottomMargin=12 * mm,
     )
     styles = getSampleStyleSheet()
-    title = ParagraphStyle(
-        "TitleBR", parent=styles["Heading1"], fontSize=14, spaceAfter=2, spaceBefore=0
-    )
     normal = styles["Normal"]
-    small = ParagraphStyle("Small", parent=normal, fontSize=9, leading=12)
+    small_left = ParagraphStyle(
+        "SmallLeft", parent=normal, fontSize=9, leading=12, alignment=TA_LEFT
+    )
+    small_right = ParagraphStyle(
+        "SmallRight", parent=normal, fontSize=9, leading=12, alignment=TA_RIGHT
+    )
     total_style = ParagraphStyle(
         "TotalBR",
         parent=normal,
@@ -69,42 +72,43 @@ def gerar_pdf_proposta(
 
     story = []
 
-    # Cabeçalho: logo 2x maior, margem esquerda, mesma linha das informações
+    # Logo cabeçalho — margem esquerda
     logo_w, logo_h = 70.0, 36.0
+    if logo_cabecalho and Path(logo_cabecalho).exists():
+        story.append(_logo_cell(logo_cabecalho, logo_w, logo_h))
+        story.append(Spacer(1, 3 * mm))
+
+    # Empresa (esquerda) | Orçamento/Cliente (direita) — mesma altura
     empresa_txt = Paragraph(
-        f"<b>{empresa.get('empresa_nome') or 'Empresa'}</b><br/>"
-        f"CNPJ: {empresa.get('empresa_cnpj') or '-'}<br/>"
-        f"Tel: {empresa.get('empresa_telefone') or '-'}<br/>"
-        f"E-mail: {empresa.get('empresa_email') or '-'}",
-        small,
+        f"<b>Nome da empresa:</b> {empresa.get('empresa_nome') or '-'}<br/>"
+        f"<b>CNPJ da empresa:</b> {empresa.get('empresa_cnpj') or '-'}<br/>"
+        f"<b>Telefone da empresa:</b> {empresa.get('empresa_telefone') or '-'}<br/>"
+        f"<b>E-mail da empresa:</b> {empresa.get('empresa_email') or '-'}",
+        small_left,
     )
-    header = Table(
-        [[_logo_cell(logo_cabecalho, logo_w, logo_h), empresa_txt]],
-        colWidths=[78 * mm, 102 * mm],
+    cliente_txt = Paragraph(
+        f"<b>Número do Orçamento:</b> {orcamento.get('numero') or '-'}<br/>"
+        f"<b>Nome do Cliente:</b> {orcamento.get('cliente_nome') or '-'}<br/>"
+        f"<b>CNPJ do Cliente:</b> {orcamento.get('cliente_doc') or '-'}<br/>"
+        f"<b>Aos cuidados do(a) Sr.(a):</b> {orcamento.get('solicitante') or '-'}",
+        small_right,
     )
-    header.setStyle(
+    header_info = Table(
+        [[empresa_txt, cliente_txt]],
+        colWidths=[90 * mm, 90 * mm],
+    )
+    header_info.setStyle(
         TableStyle(
             [
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("LEFTPADDING", (0, 0), (0, 0), 0),
-                ("RIGHTPADDING", (0, 0), (0, 0), 4),
-                ("LEFTPADDING", (1, 0), (1, 0), 6),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("ALIGN", (0, 0), (0, 0), "LEFT"),
+                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                ("LEFTPADDING", (0, 0), (0, 0), 0),
+                ("RIGHTPADDING", (1, 0), (1, 0), 0),
             ]
         )
     )
-    story.append(header)
-    story.append(Spacer(1, 6 * mm))
-
-    story.append(
-        Paragraph(
-            f"<b>Orçamento:</b> {orcamento.get('numero') or '-'}<br/>"
-            f"<b>Cliente:</b> {orcamento.get('cliente_nome') or '-'}<br/>"
-            f"<b>CNPJ:</b> {orcamento.get('cliente_doc') or '-'}<br/>"
-            f"<b>Aos cuidados do(a) Sr.(a):</b> {orcamento.get('solicitante') or '-'}",
-            small,
-        )
-    )
+    story.append(header_info)
     story.append(Spacer(1, 6 * mm))
 
     data = [["N°", "Descrição", "Und", "Qtd", "Preço Unit.", "Valor total"]]
@@ -123,7 +127,6 @@ def gerar_pdf_proposta(
             ]
         )
 
-    # Linha de total dos itens
     data.append(["", "", "", "", "TOTAL", _brl(valor_itens)])
 
     table = Table(data, colWidths=[12 * mm, 80 * mm, 12 * mm, 15 * mm, 28 * mm, 33 * mm])
@@ -170,45 +173,43 @@ def gerar_pdf_proposta(
             f"Prazo de entrega: {orcamento.get('prazo_entrega')}<br/>"
             f"Frete: {orcamento.get('frete_tipo')}<br/>"
             f"Impostos: {orcamento.get('impostos')}",
-            small,
+            small_left,
         )
     )
     story.append(Spacer(1, 4 * mm))
     story.append(
         Paragraph(
             f"<b>Observações Adicionais:</b><br/>{orcamento.get('informacoes_adicionais') or '-'}",
-            small,
+            small_left,
         )
     )
     story.append(Spacer(1, 8 * mm))
 
-    # Rodapé: logo 2x maior à esquerda, mesma linha do orçamentista
+    # Rodapé: orçamentista à esquerda, logo alinhada à margem direita
     rodape_logo_w, rodape_logo_h = 60.0, 30.0
     orcamentista_txt = Paragraph(
         f"{orcamento.get('orcamentista_nome') or '-'}<br/>"
         f"{orcamento.get('orcamentista_cargo') or '-'}<br/>"
         f"{orcamento.get('orcamentista_telefone') or '-'}<br/>"
         f"{orcamento.get('orcamentista_email') or '-'}",
-        small,
+        small_left,
     )
     footer = Table(
-        [[_logo_cell(logo_rodape, rodape_logo_w, rodape_logo_h), orcamentista_txt]],
-        colWidths=[68 * mm, 112 * mm],
+        [[orcamentista_txt, _logo_cell(logo_rodape, rodape_logo_w, rodape_logo_h)]],
+        colWidths=[112 * mm, 68 * mm],
     )
     footer.setStyle(
         TableStyle(
             [
                 ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                ("LEFTPADDING", (0, 0), (0, 0), 0),
-                ("LEFTPADDING", (1, 0), (1, 0), 6),
                 ("ALIGN", (0, 0), (0, 0), "LEFT"),
+                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
+                ("LEFTPADDING", (0, 0), (0, 0), 0),
+                ("RIGHTPADDING", (1, 0), (1, 0), 0),
             ]
         )
     )
     story.append(KeepTogether([footer]))
-
-    # title unused but kept for compatibility if styles change
-    _ = title
 
     doc.build(story)
     return buffer.getvalue()
