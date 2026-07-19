@@ -187,5 +187,53 @@ APP_CSS = """
         border-radius: 10px;
         overflow: hidden;
     }
+
+    /* Prévia da proposta — descrição quebra linha sem invadir Und/Qtd */
+    .prop-items-wrap {
+        border: 2px solid var(--orc-border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 0.4rem 0 0.8rem 0;
+        background: #fff;
+    }
+    .prop-items {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+        font-size: 0.86rem;
+    }
+    .prop-items thead th {
+        background: #0A3358;
+        color: #fff;
+        text-align: left;
+        padding: 0.4rem 0.45rem;
+        font-weight: 700;
+    }
+    .prop-items td {
+        padding: 0.4rem 0.45rem;
+        border-bottom: 1px solid #c5d4e2;
+        vertical-align: top;
+        color: var(--orc-text);
+    }
+    .prop-items .prop-row-even { background: #fff; }
+    .prop-items .prop-row-odd { background: #eef4f9; }
+    .prop-items th:nth-child(1), .prop-items td.prop-n { width: 8%; }
+    .prop-items th:nth-child(2), .prop-items td.prop-desc { width: 40%; }
+    .prop-items th:nth-child(3), .prop-items td.prop-und { width: 10%; }
+    .prop-items th:nth-child(4),
+    .prop-items th:nth-child(5),
+    .prop-items th:nth-child(6) { width: 14%; }
+    .prop-items td.prop-desc {
+        white-space: normal;
+        overflow-wrap: anywhere;
+        word-break: break-word;
+        hyphens: auto;
+    }
+    .prop-items td.prop-num {
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
+    }
+    .prop-items td.prop-und { white-space: nowrap; }
 </style>
 """

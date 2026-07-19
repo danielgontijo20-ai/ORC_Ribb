@@ -111,23 +111,79 @@ def gerar_pdf_proposta(
     story.append(header_info)
     story.append(Spacer(1, 6 * mm))
 
-    data = [["N°", "Descrição", "Und", "Qtd", "Preço Unit.", "Valor total"]]
+    desc_style = ParagraphStyle(
+        "ItemDesc",
+        parent=normal,
+        fontSize=8,
+        leading=10,
+        alignment=TA_LEFT,
+        wordWrap="CJK",
+    )
+    head_style = ParagraphStyle(
+        "ItemHead",
+        parent=normal,
+        fontSize=8,
+        leading=10,
+        textColor=colors.white,
+        alignment=TA_LEFT,
+    )
+    cell_style = ParagraphStyle(
+        "ItemCell",
+        parent=normal,
+        fontSize=8,
+        leading=10,
+        alignment=TA_LEFT,
+    )
+    cell_right = ParagraphStyle(
+        "ItemCellR",
+        parent=cell_style,
+        alignment=TA_RIGHT,
+    )
+
+    def _esc(txt: str) -> str:
+        return (
+            str(txt or "")
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+        )
+
+    data = [
+        [
+            Paragraph("N°", head_style),
+            Paragraph("Descrição", head_style),
+            Paragraph("Und", head_style),
+            Paragraph("Qtd", head_style),
+            Paragraph("Preço Unit.", head_style),
+            Paragraph("Valor total", head_style),
+        ]
+    ]
     valor_itens = 0.0
     for idx, item in enumerate(itens, start=1):
         linha_total = float(item.get("valor_venda_total", 0) or 0)
         valor_itens += linha_total
         data.append(
             [
-                f"{idx:02d}",
-                item.get("descricao") or "",
-                item.get("unidade") or "",
-                f"{item.get('quantidade', 0):.0f}",
-                _brl(item.get("preco_unitario", 0)),
-                _brl(linha_total),
+                Paragraph(f"{idx:02d}", cell_style),
+                # Paragraph quebra a descrição na linha de baixo (não invade Und/Qtd)
+                Paragraph(_esc(item.get("descricao") or ""), desc_style),
+                Paragraph(_esc(item.get("unidade") or ""), cell_style),
+                Paragraph(f"{float(item.get('quantidade', 0) or 0):.0f}", cell_right),
+                Paragraph(_brl(item.get("preco_unitario", 0)), cell_right),
+                Paragraph(_brl(linha_total), cell_right),
             ]
         )
 
-    data.append(["", "", "", "", "TOTAL", _brl(valor_itens)])
+    data.append(
+        [
+            "",
+            "",
+            "",
+            "",
+            Paragraph("<b>TOTAL</b>", cell_right),
+            Paragraph(f"<b>{_brl(valor_itens)}</b>", cell_right),
+        ]
+    )
 
     table = Table(data, colWidths=[12 * mm, 80 * mm, 12 * mm, 15 * mm, 28 * mm, 33 * mm])
     last = len(data) - 1
@@ -138,7 +194,7 @@ def gerar_pdf_proposta(
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("FONTSIZE", (0, 0), (-1, -1), 8),
                 ("GRID", (0, 0), (-1, last - 1), 0.4, colors.grey),
-                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 (
                     "ROWBACKGROUNDS",
                     (0, 1),
@@ -146,12 +202,12 @@ def gerar_pdf_proposta(
                     [colors.white, colors.HexColor("#f5f7fa")],
                 ),
                 ("BACKGROUND", (0, last), (-1, last), colors.HexColor("#EAF1F6")),
-                ("FONTNAME", (4, last), (-1, last), "Helvetica-Bold"),
-                ("FONTSIZE", (4, last), (-1, last), 9),
-                ("ALIGN", (4, last), (-1, last), "RIGHT"),
+                ("ALIGN", (3, 1), (-1, last), "RIGHT"),
                 ("LINEABOVE", (0, last), (-1, last), 1, colors.HexColor("#0A3358")),
-                ("TOPPADDING", (0, last), (-1, last), 6),
-                ("BOTTOMPADDING", (0, last), (-1, last), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (1, 0), (1, -1), 3),
+                ("RIGHTPADDING", (1, 0), (1, -1), 3),
             ]
         )
     )

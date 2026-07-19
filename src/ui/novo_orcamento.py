@@ -186,6 +186,7 @@ def _painel_esquerda(conn, cfg, proposta, *, readonly: bool = False) -> None:
                     bump_form_seq()
                     st.session_state.modo_form = "etiqueta"
                     st.session_state.memoria_calculo = None
+                    st.session_state.show_dialog = None
                     marcar_scroll_form()
                     st.rerun()
             with a2:
@@ -198,6 +199,7 @@ def _painel_esquerda(conn, cfg, proposta, *, readonly: bool = False) -> None:
                     bump_form_seq()
                     st.session_state.modo_form = "suprimentos"
                     st.session_state.memoria_calculo = None
+                    st.session_state.show_dialog = None
                     marcar_scroll_form()
                     st.rerun()
             with a3:
@@ -300,11 +302,19 @@ def _form_etiqueta_body(conn, cfg, proposta, facas, materias, tubetes, caixas) -
     op_cxs = [c["nome"] for c in caixas]
     idx_caixa = op_cxs.index(caixa_nativa) if caixa_nativa in op_cxs else 0
 
-    c1, c2 = st.columns(2)
-    with c1:
+    # Tab: esquerda → direita, depois linha de baixo
+    r1l, r1r = st.columns(2)
+    with r1l:
         tipo_faca = st.selectbox(
             "Dimensão da etiqueta", op_facas, key=_fk("etq_faca")
         )
+    with r1r:
+        materia_nome = st.selectbox(
+            "Tipo de matéria-prima", op_mps, key=_fk("etq_mp")
+        )
+
+    r2l, r2r = st.columns(2)
+    with r2l:
         qtd_etq_num = st.number_input(
             "Qtd de etiquetas por rolo",
             min_value=0.0,
@@ -313,11 +323,28 @@ def _form_etiqueta_body(conn, cfg, proposta, facas, materias, tubetes, caixas) -
             placeholder=PLACE_INS,
             key=_fk("etq_qtd_etq"),
         )
+    with r2r:
+        tubete_nome = st.selectbox(
+            "Tipo de tubete", op_tubs, key=_fk("etq_tub")
+        )
+
+    r3l, r3r = st.columns(2)
+    with r3l:
         unidade = st.text_input(
             "Unidade de medida",
             value=cfg.get("unidade_etiqueta", "Rol"),
             key=_fk("etq_und"),
         )
+    with r3r:
+        caixa_nome = st.selectbox(
+            "Tipo de caixa (nativo)",
+            op_cxs,
+            index=idx_caixa,
+            key=_fk("etq_cx"),
+        )
+
+    r4l, r4r = st.columns(2)
+    with r4l:
         qtd_total_num = st.number_input(
             "Qtd total (rolos)",
             min_value=0.0,
@@ -326,34 +353,7 @@ def _form_etiqueta_body(conn, cfg, proposta, facas, materias, tubetes, caixas) -
             placeholder=PLACE_INS,
             key=_fk("etq_qtd_total"),
         )
-        qtd_caixas_num = st.number_input(
-            "Qtd de caixas",
-            min_value=0.0,
-            value=None,
-            step=1.0,
-            placeholder=PLACE_INS,
-            key=_fk("etq_qtd_cx"),
-        )
-        frete = st.number_input(
-            "Valor do frete (nativo)",
-            min_value=0.0,
-            value=get_float(cfg, "frete_padrao", 0.0),
-            step=10.0,
-            key=_fk("etq_frete"),
-        )
-    with c2:
-        materia_nome = st.selectbox(
-            "Tipo de matéria-prima", op_mps, key=_fk("etq_mp")
-        )
-        tubete_nome = st.selectbox(
-            "Tipo de tubete", op_tubs, key=_fk("etq_tub")
-        )
-        caixa_nome = st.selectbox(
-            "Tipo de caixa (nativo)",
-            op_cxs,
-            index=idx_caixa,
-            key=_fk("etq_cx"),
-        )
+    with r4r:
         perda = st.number_input(
             "Perda (nativo)",
             min_value=0.0,
@@ -363,6 +363,18 @@ def _form_etiqueta_body(conn, cfg, proposta, facas, materias, tubetes, caixas) -
             format="%.2f",
             key=_fk("etq_perda"),
         )
+
+    r5l, r5r = st.columns(2)
+    with r5l:
+        qtd_caixas_num = st.number_input(
+            "Qtd de caixas",
+            min_value=0.0,
+            value=None,
+            step=1.0,
+            placeholder=PLACE_INS,
+            key=_fk("etq_qtd_cx"),
+        )
+    with r5r:
         lucro = st.number_input(
             "Lucro (nativo)",
             min_value=0.0,
@@ -372,6 +384,14 @@ def _form_etiqueta_body(conn, cfg, proposta, facas, materias, tubetes, caixas) -
             format="%.2f",
             key=_fk("etq_lucro"),
         )
+
+    frete = st.number_input(
+        "Valor do frete (nativo)",
+        min_value=0.0,
+        value=get_float(cfg, "frete_padrao", 0.0),
+        step=10.0,
+        key=_fk("etq_frete"),
+    )
 
     qtd_etq = float(qtd_etq_num) if qtd_etq_num is not None else None
     qtd_total = float(qtd_total_num) if qtd_total_num is not None else None
@@ -502,6 +522,8 @@ def _form_etiqueta_body(conn, cfg, proposta, facas, materias, tubetes, caixas) -
                     marcar_proposta_suja()
                 bump_form_seq()
                 st.session_state.modo_form = None
+                st.session_state.show_dialog = None
+                st.session_state.memoria_calculo = None
                 flash_sucesso("Item inserido com sucesso. Formulário limpo para o próximo item.")
                 st.rerun()
 
@@ -562,14 +584,30 @@ def _form_suprimentos_body(conn, cfg, proposta) -> None:
             st.session_state.pop(desc_key, None)
             st.session_state.pop(custo_key, None)
 
-    c1, c2 = st.columns(2)
-    with c1:
+    difal_opts = [PLACE_SEL, "SIM", "NÃO"]
+    difal_nativo = cfg.get("difal_padrao", "SIM").upper()
+    difal_idx = difal_opts.index(difal_nativo) if difal_nativo in difal_opts else 1
+
+    # Tab: esquerda → direita, depois linha de baixo
+    # Unidade → Lucro → Quantidade
+    r1l, r1r = st.columns(2)
+    with r1l:
         descricao_in = st.text_input(
             "Descrição do item",
             value="",
             placeholder=PLACE_INS,
             key=desc_key,
         )
+    with r1r:
+        difal_sel = st.selectbox(
+            "Difal (nativo)",
+            difal_opts,
+            index=difal_idx,
+            key=_fk("sup_difal"),
+        )
+
+    r2l, r2r = st.columns(2)
+    with r2l:
         custo_num = st.number_input(
             "Custo",
             min_value=0.0,
@@ -579,29 +617,7 @@ def _form_suprimentos_body(conn, cfg, proposta) -> None:
             placeholder=PLACE_INS,
             key=custo_key,
         )
-        unidade = st.text_input(
-            "Unidade de medida (nativo)",
-            value=cfg.get("unidade_suprimentos", "UN"),
-            key=_fk("sup_und"),
-        )
-        qtd_num = st.number_input(
-            "Quantidade",
-            min_value=0.0,
-            value=None,
-            step=1.0,
-            placeholder=PLACE_INS,
-            key=_fk("sup_qtd"),
-        )
-    with c2:
-        difal_opts = [PLACE_SEL, "SIM", "NÃO"]
-        difal_nativo = cfg.get("difal_padrao", "SIM").upper()
-        difal_idx = difal_opts.index(difal_nativo) if difal_nativo in difal_opts else 1
-        difal_sel = st.selectbox(
-            "Difal (nativo)",
-            difal_opts,
-            index=difal_idx,
-            key=_fk("sup_difal"),
-        )
+    with r2r:
         frete = st.number_input(
             "Valor do frete (nativo)",
             min_value=0.0,
@@ -609,6 +625,15 @@ def _form_suprimentos_body(conn, cfg, proposta) -> None:
             step=10.0,
             key=_fk("sup_frete"),
         )
+
+    r3l, r3r = st.columns(2)
+    with r3l:
+        unidade = st.text_input(
+            "Unidade de medida (nativo)",
+            value=cfg.get("unidade_suprimentos", "UN"),
+            key=_fk("sup_und"),
+        )
+    with r3r:
         lucro = st.number_input(
             "Lucro (nativo)",
             min_value=0.0,
@@ -618,6 +643,15 @@ def _form_suprimentos_body(conn, cfg, proposta) -> None:
             format="%.2f",
             key=_fk("sup_lucro"),
         )
+
+    qtd_num = st.number_input(
+        "Quantidade",
+        min_value=0.0,
+        value=None,
+        step=1.0,
+        placeholder=PLACE_INS,
+        key=_fk("sup_qtd"),
+    )
 
     custo = float(custo_num) if custo_num is not None else None
     quantidade = float(qtd_num) if qtd_num is not None else None
@@ -716,6 +750,8 @@ def _form_suprimentos_body(conn, cfg, proposta) -> None:
                     marcar_proposta_suja()
                 bump_form_seq()
                 st.session_state.modo_form = None
+                st.session_state.show_dialog = None
+                st.session_state.memoria_calculo = None
                 flash_sucesso("Item inserido com sucesso. Formulário limpo para o próximo item.")
                 st.rerun()
 
@@ -723,6 +759,53 @@ def _form_suprimentos_body(conn, cfg, proposta) -> None:
 def _garantir_numero(conn, proposta) -> None:
     if not proposta.get("numero"):
         proposta["numero"] = proximo_numero_orcamento(conn)
+
+
+def _tabela_itens_proposta(itens: list[dict]) -> None:
+    """Tabela da prévia com descrição que quebra linha (não invade Und/Qtd)."""
+    import html as _html
+
+    rows = []
+    for i, it in enumerate(itens):
+        zebra = "prop-row-even" if i % 2 == 0 else "prop-row-odd"
+        rows.append(
+            "<tr class='%s'>"
+            "<td class='prop-n'>%02d</td>"
+            "<td class='prop-desc'>%s</td>"
+            "<td class='prop-und'>%s</td>"
+            "<td class='prop-num'>%s</td>"
+            "<td class='prop-num'>%s</td>"
+            "<td class='prop-num'>%s</td>"
+            "</tr>"
+            % (
+                zebra,
+                i + 1,
+                _html.escape(str(it.get("descricao") or "")),
+                _html.escape(str(it.get("unidade") or "")),
+                _html.escape(
+                    f"{float(it.get('quantidade') or 0):.2f}".replace(".", ",")
+                ),
+                _html.escape(brl(it.get("preco_unitario"))),
+                _html.escape(brl(it.get("valor_venda_total"))),
+            )
+        )
+    st.markdown(
+        """
+        <div class="prop-items-wrap">
+          <table class="prop-items">
+            <thead>
+              <tr>
+                <th>N°</th><th>Descrição</th><th>Und</th>
+                <th>Qtd</th><th>Preço Unit.</th><th>Valor total</th>
+              </tr>
+            </thead>
+            <tbody>%s</tbody>
+          </table>
+        </div>
+        """
+        % "".join(rows),
+        unsafe_allow_html=True,
+    )
 
 
 def _painel_proposta(conn, cfg, proposta, *, readonly: bool = False) -> None:
@@ -761,22 +844,7 @@ def _painel_proposta(conn, cfg, proposta, *, readonly: bool = False) -> None:
         valor_total, lucro_total, frete_total = totais_proposta()
 
         if itens:
-            df = pd.DataFrame(
-                [
-                    {
-                        "N° Item": f"{i+1:02d}",
-                        "Descrição": it["descricao"],
-                        "Und": it.get("unidade"),
-                        "Qtd": (
-                            f"{float(it.get('quantidade') or 0):.2f}".replace(".", ",")
-                        ),
-                        "Preço Unit.": brl(it.get("preco_unitario")),
-                        "Valor total": brl(it.get("valor_venda_total")),
-                    }
-                    for i, it in enumerate(itens)
-                ]
-            )
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            _tabela_itens_proposta(itens)
             if not readonly:
                 rem = st.number_input(
                     "Remover item (nº da linha)",
@@ -905,6 +973,11 @@ def _gerar_e_oferecer_pdf(conn, cfg, proposta) -> None:
         )
 
 
+def _dismiss_dialog() -> None:
+    """Fecha popup (X ou dismiss) sem deixar show_dialog preso."""
+    st.session_state.show_dialog = None
+
+
 def _render_dialogs(cfg) -> None:
     which = st.session_state.get("show_dialog")
     if which == "cliente":
@@ -917,7 +990,7 @@ def _render_dialogs(cfg) -> None:
         _dialog_memoria()
 
 
-@st.dialog("Selecionar cliente")
+@st.dialog("Selecionar cliente", on_dismiss=_dismiss_dialog)
 def _dialog_cliente() -> None:
     termo = st.text_input("Pesquisar por CNPJ ou Nome", key="dlg_cli_termo")
     # Nova conexão nesta thread do popup (corrige ProgrammingError)
@@ -956,7 +1029,7 @@ def _dialog_cliente() -> None:
         st.rerun()
 
 
-@st.dialog("Cliente avulso")
+@st.dialog("Cliente avulso", on_dismiss=_dismiss_dialog)
 def _dialog_cliente_avulso() -> None:
     cnpj = st.text_input("CNPJ")
     nome = st.text_input("Nome do cliente")
@@ -978,7 +1051,7 @@ def _dialog_cliente_avulso() -> None:
         st.rerun()
 
 
-@st.dialog("Condições gerais de fornecimento")
+@st.dialog("Condições gerais de fornecimento", on_dismiss=_dismiss_dialog)
 def _dialog_condicoes(cfg) -> None:
     p = st.session_state.proposta
     p["solicitante"] = st.text_input("Nome do solicitante", value=p.get("solicitante") or "")
@@ -1028,7 +1101,7 @@ def _dialog_condicoes(cfg) -> None:
         st.rerun()
 
 
-@st.dialog("Memória de cálculo", width="large")
+@st.dialog("Memória de cálculo", width="large", on_dismiss=_dismiss_dialog)
 def _dialog_memoria() -> None:
     proposta = st.session_state.get("proposta") or {}
     itens = proposta.get("itens") or []
@@ -1062,4 +1135,5 @@ def _dialog_memoria() -> None:
     with b2:
         if st.button("Fechar", key="mem_fechar", use_container_width=True):
             st.session_state.show_dialog = None
+            st.session_state.memoria_calculo = None
             st.rerun()
