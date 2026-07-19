@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Usuários — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="topbar">
+  <h1 class="brand">Usuários</h1>
+  <div class="userbox"><a class="btn btn-ghost" href="/menu">← Menu</a></div>
+</div>
+
+{% if flash_ok %}<div class="ok">{{ flash_ok }}</div>{% endif %}
+{% if flash_err %}<div class="error">{{ flash_err }}</div>{% endif %}
+
+<div class="card">
+  <div class="btn-row" style="margin-top:0;margin-bottom:0.85rem">
+    <a class="btn btn-primary" href="/usuarios/novo">+ Novo usuário</a>
+  </div>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Nome</th>
+          <th>E-mail</th>
+          <th>Papel</th>
+          <th>Ativo</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for u in usuarios %}
+        <tr>
+          <td>{{ u.nome }}</td>
+          <td>{{ u.email }}</td>
+          <td><span class="badge">{{ u.papel_nome }}</span></td>
+          <td>{{ 'Sim' if u.ativo else 'Não' }}</td>
+          <td class="row-actions"><a class="btn btn-sm btn-primary" href="/usuarios/{{ u.id }}">Editar</a></td>
+        </tr>
+        {% else %}
+        <tr><td colspan="5">Nenhum usuário.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

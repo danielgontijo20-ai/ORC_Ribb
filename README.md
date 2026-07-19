@@ -5,7 +5,7 @@ Sistema para geração de orçamentos (etiquetas e suprimentos).
 ## Stack
 
 - **Versão 01 (local):** Python + Streamlit + SQLite  
-- **Web (fase 2):** FastAPI + Jinja2 + login/permissões + formação de orçamento + SQLite  
+- **Web (fase 3):** FastAPI + Jinja2 + login/permissões + orçamento + cadastros CRUD + usuários + SQLite  
 - pandas / openpyxl / reportlab
 
 ## Backup Versão 01
@@ -21,8 +21,8 @@ git checkout versao01
 ```powershell
 cd C:\Users\dani_\ORC_Ribb
 git fetch origin
-git checkout cursor/web-fase2-orcamento-3237
-git pull origin cursor/web-fase2-orcamento-3237
+git checkout cursor/web-fase3-cadastros-usuarios-3237
+git pull origin cursor/web-fase3-cadastros-usuarios-3237
 
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -62,6 +62,6 @@ Abre em `http://localhost:8501`.
 - `docs/etapa3-banco-de-dados.md`
 - `docs/etapa4-interface-streamlit.md`
 - `docs/etapa5-layout-pptx.md`
-- `docs/web-fase1.md` / `docs/web-fase2.md`
+- `docs/web-fase1.md` / `docs/web-fase2.md` / `docs/web-fase3.md`
 - `docs/deploy-hostinger-vps.md`
 - `docs/layout/LAYOUT_ORC_RBT.pptx`

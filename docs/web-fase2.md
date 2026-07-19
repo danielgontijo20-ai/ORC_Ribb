@@ -21,6 +21,6 @@
 - A sessão guarda só o `id` do orçamento (evita limite de cookie)
 
 ## Ainda na sequência (fase 3)
-- Edição de cadastros na web
-- Gestão de usuários na interface
+- ~~Edição de cadastros na web~~ → ver `docs/web-fase3.md`
+- ~~Gestão de usuários na interface~~ → ver `docs/web-fase3.md`
 - PostgreSQL/MySQL (opcional em produção)

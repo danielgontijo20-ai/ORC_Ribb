@@ -24,6 +24,9 @@
     {% if has_perm(user, 'historico_vendas.ver') %}
     <a href="/historico-vendas">HISTÓRICO DE VENDAS</a>
     {% endif %}
+    {% if has_perm(user, 'usuarios.gerenciar') %}
+    <a href="/usuarios">USUÁRIOS</a>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

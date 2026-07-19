@@ -188,3 +188,101 @@ def usuario_tem_permissao(user: dict[str, Any] | None, codigo: str) -> bool:
     if user.get("papel_codigo") == "admin":
         return True
     return codigo in perms
+
+
+def listar_papeis(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        "SELECT id, codigo, nome FROM papeis ORDER BY nome"
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def listar_usuarios(conn: sqlite3.Connection) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        """
+        SELECT u.id, u.nome, u.email, u.ativo,
+               p.id AS papel_id, p.codigo AS papel_codigo, p.nome AS papel_nome
+        FROM usuarios u
+        JOIN papeis p ON p.id = u.papel_id
+        ORDER BY u.nome
+        """
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def criar_usuario(
+    conn: sqlite3.Connection,
+    *,
+    nome: str,
+    email: str,
+    senha: str,
+    papel_id: int,
+    ativo: bool = True,
+) -> int:
+    email_norm = email.strip().lower()
+    existe = conn.execute(
+        "SELECT id FROM usuarios WHERE lower(email) = ?", (email_norm,)
+    ).fetchone()
+    if existe:
+        raise ValueError("Já existe usuário com este e-mail.")
+    cur = conn.execute(
+        """
+        INSERT INTO usuarios (nome, email, senha_hash, papel_id, ativo)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (nome.strip(), email_norm, hash_senha(senha), papel_id, 1 if ativo else 0),
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+def atualizar_usuario(
+    conn: sqlite3.Connection,
+    usuario_id: int,
+    *,
+    nome: str,
+    email: str,
+    papel_id: int,
+    ativo: bool,
+    senha: str | None = None,
+) -> None:
+    email_norm = email.strip().lower()
+    conflito = conn.execute(
+        "SELECT id FROM usuarios WHERE lower(email) = ? AND id != ?",
+        (email_norm, usuario_id),
+    ).fetchone()
+    if conflito:
+        raise ValueError("Já existe usuário com este e-mail.")
+    if senha and senha.strip():
+        conn.execute(
+            """
+            UPDATE usuarios
+            SET nome=?, email=?, papel_id=?, ativo=?, senha_hash=?
+            WHERE id=?
+            """,
+            (
+                nome.strip(),
+                email_norm,
+                papel_id,
+                1 if ativo else 0,
+                hash_senha(senha.strip()),
+                usuario_id,
+            ),
+        )
+    else:
+        conn.execute(
+            """
+            UPDATE usuarios
+            SET nome=?, email=?, papel_id=?, ativo=?
+            WHERE id=?
+            """,
+            (nome.strip(), email_norm, papel_id, 1 if ativo else 0, usuario_id),
+        )
+    conn.commit()
+
+
+def obter_papel_por_codigo(conn: sqlite3.Connection, codigo: str) -> dict | None:
+    row = conn.execute(
+        "SELECT id, codigo, nome FROM papeis WHERE codigo = ?", (codigo,)
+    ).fetchone()
+    return dict(row) if row else None

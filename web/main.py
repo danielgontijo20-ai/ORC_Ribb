@@ -19,7 +19,7 @@ from src.db.migrate import migrate
 from src.services.usuarios import autenticar
 from web.config import APP_NAME, SECRET_KEY, SESSION_MAX_AGE
 from web.deps import get_current_user
-from web.routes import cadastros, historico_vendas, menu, orcamentos
+from web.routes import cadastros, historico_vendas, menu, orcamentos, usuarios
 from web.templating import render
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -39,6 +39,7 @@ app.include_router(menu.router)
 app.include_router(orcamentos.router)
 app.include_router(cadastros.router)
 app.include_router(historico_vendas.router)
+app.include_router(usuarios.router)
 
 
 @app.on_event("startup")

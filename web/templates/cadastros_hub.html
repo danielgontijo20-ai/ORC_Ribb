@@ -3,12 +3,11 @@
 {% block body %}
 <div class="topbar">
   <h1 class="brand">Cadastros</h1>
-  <div class="userbox"><a href="/menu">← Menu</a></div>
+  <div class="userbox"><a class="btn btn-ghost" href="/menu">← Menu</a></div>
 </div>
 <div class="card">
   <p class="muted">
-    {% if pode_editar %}Consulta dos cadastros + edição de Valores Nativos.
-    CRUD completo de itens (MP, facas, etc.) na próxima etapa.
+    {% if pode_editar %}Incluir, editar e excluir registros.
     {% else %}Modo consulta.
     {% endif %}
   </p>
