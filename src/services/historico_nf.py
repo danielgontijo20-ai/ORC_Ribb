@@ -37,7 +37,7 @@ def listar_vendas_por_cliente(
         WHERE {' AND '.join(where)}
           AND f.numero_nota IS NOT NULL
         GROUP BY f.numero_nota, f.cliente_id, f.nome_cliente, f.cnpj_cpf
-        ORDER BY data_emissao DESC
+        ORDER BY data_emissao DESC, f.numero_nota DESC
         LIMIT ?
     """
     params.append(limite_notas)

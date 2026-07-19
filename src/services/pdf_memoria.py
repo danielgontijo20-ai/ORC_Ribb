@@ -142,42 +142,43 @@ def gerar_pdf_memoria(
     story.append(resumo_tbl)
     story.append(Spacer(1, 4 * mm))
 
-    secoes = coletar_secoes_memoria(itens or [], rascunho)
-    if not secoes:
-        story.append(Paragraph("Sem dados de memória de cálculo.", cell))
-    else:
-        for sec in secoes:
-            story.append(Paragraph(_esc(sec["titulo"]), section))
-            for rotulo, linhas in (
-                ("Parâmetros de entrada", sec.get("params") or []),
-                ("Resultado do cálculo", sec.get("calculo") or []),
-            ):
-                if not linhas:
-                    continue
-                data = [
-                    [
-                        Paragraph(f"<b>{_esc(rotulo)}</b>", caption),
-                        Paragraph("<b>Valor</b>", caption),
-                    ]
+    def _mini_tabela(rotulo: str, linhas: list[tuple[str, str]], largura: float):
+        data = [
+            [
+                Paragraph(f"<b>{_esc(rotulo)}</b>", caption),
+                Paragraph("<b>Valor</b>", caption),
+            ]
+        ]
+        if not linhas:
+            data.append(
+                [
+                    Paragraph("—", cell),
+                    Paragraph("—", cell_r),
                 ]
-                for campo, valor in linhas:
-                    data.append(
-                        [
-                            Paragraph(_esc(campo), cell),
-                            Paragraph(_esc(valor), cell_r),
-                        ]
-                    )
-                tbl = Table(data, colWidths=[95 * mm, 85 * mm])
-                style_cmds = [
+            )
+        else:
+            for campo, valor in linhas:
+                data.append(
+                    [
+                        Paragraph(_esc(campo), cell),
+                        Paragraph(_esc(valor), cell_r),
+                    ]
+                )
+        col_a = largura * 0.55
+        col_b = largura * 0.45
+        tbl = Table(data, colWidths=[col_a, col_b])
+        tbl.setStyle(
+            TableStyle(
+                [
                     ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0A3358")),
                     ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
+                    ("FONTSIZE", (0, 0), (-1, -1), 7),
                     ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#6F8AA3")),
-                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                    ("TOPPADDING", (0, 0), (-1, -1), 3),
-                    ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                    ("LEFTPADDING", (0, 0), (-1, -1), 4),
-                    ("RIGHTPADDING", (0, 0), (-1, -1), 4),
+                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                    ("TOPPADDING", (0, 0), (-1, -1), 2),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 3),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 3),
                     (
                         "ROWBACKGROUNDS",
                         (0, 1),
@@ -185,9 +186,38 @@ def gerar_pdf_memoria(
                         [colors.white, colors.HexColor("#e8f0f7")],
                     ),
                 ]
-                tbl.setStyle(TableStyle(style_cmds))
-                story.append(tbl)
-                story.append(Spacer(1, 2 * mm))
+            )
+        )
+        return tbl
+
+    secoes = coletar_secoes_memoria(itens or [], rascunho)
+    if not secoes:
+        story.append(Paragraph("Sem dados de memória de cálculo.", cell))
+    else:
+        for sec in secoes:
+            story.append(Paragraph(_esc(sec["titulo"]), section))
+            # Parâmetros à esquerda | Resultado à direita
+            half = 88 * mm
+            left = _mini_tabela(
+                "Parâmetros de entrada", sec.get("params") or [], half
+            )
+            right = _mini_tabela(
+                "Resultado do cálculo", sec.get("calculo") or [], half
+            )
+            pair = Table([[left, right]], colWidths=[half + 2 * mm, half + 2 * mm])
+            pair.setStyle(
+                TableStyle(
+                    [
+                        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                        ("TOPPADDING", (0, 0), (-1, -1), 0),
+                        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                    ]
+                )
+            )
+            story.append(pair)
+            story.append(Spacer(1, 3 * mm))
 
     doc.build(story)
     return buffer.getvalue()

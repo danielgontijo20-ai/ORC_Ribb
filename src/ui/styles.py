@@ -133,6 +133,30 @@ APP_CSS = """
         border-radius: 12px !important;
         font-weight: 650 !important;
     }
+    .menu-logo {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        min-height: 14rem;
+        padding: 0.25rem 0.5rem;
+        background: transparent;
+        border: none !important;
+        box-shadow: none !important;
+    }
+    .menu-logo img {
+        max-width: 100%;
+        height: auto;
+        object-fit: contain;
+    }
+    /* Remove borda/sombra de wrappers ao redor da logo do menu */
+    div[data-testid="stVerticalBlockBorderWrapper"]:has(.menu-logo),
+    .menu-logo-host div[data-testid="stVerticalBlockBorderWrapper"] {
+        border: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        padding: 0 !important;
+    }
 
     /* Memória de cálculo — tabelas com contraste alto */
     .mem-item-title {
@@ -141,6 +165,22 @@ APP_CSS = """
         font-size: 1.05rem;
         margin: 0.6rem 0 0.35rem 0;
     }
+    /* Parâmetros | Resultado lado a lado */
+    .mem-side-by-side {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.65rem;
+        align-items: stretch;
+        margin: 0.2rem 0 0.35rem 0;
+    }
+    .mem-side-col {
+        flex: 1 1 280px;
+        min-width: 0;
+    }
+    .mem-side-col .mem-table-wrap {
+        height: 100%;
+        margin: 0;
+    }
     .mem-table-wrap {
         margin: 0.35rem 0 0.85rem 0;
         border: 2px solid var(--orc-border-strong);
@@ -148,6 +188,15 @@ APP_CSS = """
         overflow: hidden;
         background: #fff;
         box-shadow: 0 4px 12px rgba(10, 51, 88, 0.08);
+    }
+    .mem-table-empty {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 4rem;
+        color: var(--orc-muted);
+        font-weight: 600;
+        padding: 0.75rem;
     }
     .mem-table-caption {
         background: var(--orc-primary);

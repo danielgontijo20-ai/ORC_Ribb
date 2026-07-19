@@ -94,10 +94,10 @@ def _dict_para_linhas(dados: dict, labels: dict[str, str]) -> list[tuple[str, st
     return linhas
 
 
-def _tabela_html(linhas: list[tuple[str, str]], *, caption: str) -> None:
-    """Tabela HTML com contraste alto (zebra + borda forte)."""
+def _tabela_html_str(linhas: list[tuple[str, str]], *, caption: str) -> str:
+    """HTML da tabela com contraste alto."""
     if not linhas:
-        return
+        return ""
     rows_html = []
     for i, (campo, valor) in enumerate(linhas):
         zebra = "mem-row-even" if i % 2 == 0 else "mem-row-odd"
@@ -105,18 +105,20 @@ def _tabela_html(linhas: list[tuple[str, str]], *, caption: str) -> None:
             f'<tr class="{zebra}"><td class="mem-campo">{html.escape(str(campo))}</td>'
             f'<td class="mem-valor">{html.escape(str(valor))}</td></tr>'
         )
-    st.markdown(
-        f"""
-        <div class="mem-table-wrap">
-          <div class="mem-table-caption">{html.escape(caption)}</div>
-          <table class="mem-table">
-            <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
-            <tbody>{''.join(rows_html)}</tbody>
-          </table>
-        </div>
-        """,
-        unsafe_allow_html=True,
+    return (
+        f'<div class="mem-table-wrap">'
+        f'<div class="mem-table-caption">{html.escape(caption)}</div>'
+        f'<table class="mem-table">'
+        f"<thead><tr><th>Campo</th><th>Valor</th></tr></thead>"
+        f"<tbody>{''.join(rows_html)}</tbody>"
+        f"</table></div>"
     )
+
+
+def _tabela_html(linhas: list[tuple[str, str]], *, caption: str) -> None:
+    html = _tabela_html_str(linhas, caption=caption)
+    if html:
+        st.markdown(html, unsafe_allow_html=True)
 
 
 def _resultado_para_dict(resultado) -> dict:
@@ -252,19 +254,34 @@ def render_tabela_memoria(
     calculo: dict | None,
     key_prefix: str,
 ) -> None:
-    """Uma memória: título + tabela de parâmetros + tabela de cálculo."""
+    """Uma memória: título + parâmetros e resultado lado a lado."""
     del key_prefix  # HTML tables não precisam de key Streamlit
     st.markdown(
         f'<div class="mem-item-title">{html.escape(titulo)}</div>',
         unsafe_allow_html=True,
     )
-    if params:
-        _tabela_html(_dict_para_linhas(params, _LABELS_PARAM), caption="Parâmetros de entrada")
-    if calculo:
-        _tabela_html(_dict_para_linhas(calculo, _LABELS_CALC), caption="Resultado do cálculo")
-    if not params and not calculo:
+    params_linhas = _dict_para_linhas(params or {}, _LABELS_PARAM) if params else []
+    calc_linhas = _dict_para_linhas(calculo or {}, _LABELS_CALC) if calculo else []
+    if not params_linhas and not calc_linhas:
         st.info("Sem dados de memória para este item.")
-    st.markdown('<div class="mem-sep"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="mem-sep"></div>', unsafe_allow_html=True)
+        return
+
+    left = _tabela_html_str(params_linhas, caption="Parâmetros de entrada")
+    right = _tabela_html_str(calc_linhas, caption="Resultado do cálculo")
+    if not left:
+        left = '<div class="mem-table-wrap mem-table-empty">Sem parâmetros</div>'
+    if not right:
+        right = '<div class="mem-table-wrap mem-table-empty">Sem resultado</div>'
+
+    st.markdown(
+        f'<div class="mem-side-by-side">'
+        f'<div class="mem-side-col">{left}</div>'
+        f'<div class="mem-side-col">{right}</div>'
+        f"</div>"
+        f'<div class="mem-sep"></div>',
+        unsafe_allow_html=True,
+    )
 
 
 def render_memorias_itens(itens: list[dict], *, key_prefix: str = "mem") -> None:

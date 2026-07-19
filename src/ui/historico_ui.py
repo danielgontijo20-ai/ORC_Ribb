@@ -25,14 +25,14 @@ def render_historico(conn) -> None:
             voltar()
 
     st.write(
-        "Pesquise um cliente, **clique na linha** da grade e depois em **Buscar vendas**. "
-        "A tela não carrega o histórico automaticamente."
+        "Opcional: pesquise um cliente e **clique na linha** da grade. "
+        "Em **Buscar vendas** sem filtro, lista todas as vendas (mais recente → mais antiga)."
     )
 
     with st.container(border=True):
         termo = st.text_input(
             "Pesquisar cliente (nome ou CNPJ)",
-            placeholder="Digite parte do nome ou CNPJ",
+            placeholder="Deixe vazio para listar todas as vendas",
             key="hist_termo",
         )
         cliente_id = None
@@ -54,30 +54,27 @@ def render_historico(conn) -> None:
                     )
                     st.success(f"Selecionado: **{escolha_label}**")
                 else:
-                    st.info("Clique em um cliente na grade.")
+                    st.info("Clique em um cliente na grade, ou busque sem filtro (todas as vendas).")
             else:
                 st.warning("Nenhum cliente encontrado para este termo.")
-        else:
-            st.info("Digite um termo de pesquisa para localizar o cliente.")
 
         buscar = st.button("Buscar vendas", type="primary", use_container_width=True)
 
         if buscar:
-            if not (termo and termo.strip()):
+            if termo and termo.strip() and not cliente_id:
                 st.session_state.hist_resultado = None
-                st.error("Informe um termo de pesquisa antes de buscar.")
-            elif not cliente_id:
-                st.session_state.hist_resultado = None
-                st.error("Clique em um cliente na grade antes de buscar.")
+                st.error("Clique em um cliente na grade, ou limpe a pesquisa para listar todas.")
             else:
                 with st.spinner("Buscando vendas..."):
                     st.session_state.hist_resultado = listar_vendas_por_cliente(
                         conn,
                         cliente_id=cliente_id,
                         termo_cliente=None,
-                        limite_notas=200,
+                        limite_notas=500,
                     )
-                st.session_state.hist_resultado_label = escolha_label
+                st.session_state.hist_resultado_label = (
+                    escolha_label if cliente_id else "todas as vendas (mais recente → antiga)"
+                )
 
     notas = st.session_state.get("hist_resultado")
     if notas is None:
@@ -88,7 +85,7 @@ def render_historico(conn) -> None:
     st.markdown(f"#### Resultado — {label}")
 
     if not notas:
-        st.warning("Nenhuma venda encontrada para este cliente.")
+        st.warning("Nenhuma venda encontrada.")
         return
 
     for nota in notas:
