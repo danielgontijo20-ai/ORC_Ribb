@@ -13,7 +13,9 @@
   <p class="muted">Menu principal — acesso conforme suas permissões.</p>
   <div class="menu-grid">
     {% if has_perm(user, 'orcamento.criar') %}
-    <a href="/orcamentos/novo">NOVO ORÇAMENTO</a>
+    <form method="post" action="/orcamentos/novo/iniciar" class="menu-form">
+      <button type="submit">NOVO ORÇAMENTO</button>
+    </form>
     {% endif %}
     {% if has_perm(user, 'orcamento.ver') %}
     <a href="/orcamentos">HISTÓRICO DE ORÇAMENTOS</a>

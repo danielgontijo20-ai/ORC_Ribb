@@ -72,7 +72,7 @@
           <div class="form-grid">
             <div>
               <label>Dimensão da etiqueta</label>
-              <select name="tipo_faca" required>
+              <select name="tipo_faca">
                 <option value="(selecione)">(selecione)</option>
                 {% for f in facas %}
                 <option value="{{ f.tipo_faca }}" {% if form_vals.tipo_faca==f.tipo_faca %}selected{% endif %}>{{ f.tipo_faca }}</option>
@@ -81,7 +81,7 @@
             </div>
             <div>
               <label>Tipo de matéria-prima</label>
-              <select name="materia_nome" required>
+              <select name="materia_nome">
                 <option value="(selecione)">(selecione)</option>
                 {% for m in materias %}
                 <option value="{{ m.nome }}" {% if form_vals.materia_nome==m.nome %}selected{% endif %}>{{ m.nome }}</option>
@@ -94,7 +94,7 @@
             </div>
             <div>
               <label>Tipo de tubete</label>
-              <select name="tubete_nome" required>
+              <select name="tubete_nome">
                 <option value="(selecione)">(selecione)</option>
                 {% for t in tubetes %}
                 <option value="{{ t.nome }}" {% if form_vals.tubete_nome==t.nome %}selected{% endif %}>{{ t.nome }}</option>
@@ -134,14 +134,13 @@
               <input name="frete" type="number" step="10" min="0" value="{{ form_vals.frete if form_vals.frete != '' else defaults.frete }}" />
             </div>
           </div>
-          {% if preview_item %}
-          <p class="muted">Descrição: <strong>{{ preview_item.descricao }}</strong></p>
-          <div class="metrics">
-            <div><span class="muted">Venda unitária</span><strong>{{ brl(preview_item.unitario) }}</strong></div>
-            <div><span class="muted">Venda total</span><strong>{{ brl(preview_item.total) }}</strong></div>
-            <div><span class="muted">Lucro do item</span><strong>{{ brl(preview_item.lucro) }}</strong></div>
+          <p class="muted preview-desc" id="etq-desc">Descrição gerada: —</p>
+          <div class="metrics live-metrics">
+            <div><span class="muted">Venda unitária</span><strong id="etq-unit">R$ 0,00</strong></div>
+            <div><span class="muted">Venda total do item</span><strong id="etq-total">R$ 0,00</strong></div>
+            <div><span class="muted">Lucro total do item</span><strong id="etq-lucro">R$ 0,00</strong></div>
           </div>
-          {% endif %}
+          <p class="muted" id="etq-hint">Preencha/selecione os campos — os valores atualizam ao completar.</p>
           <div class="btn-row">
             <button class="btn" type="submit" name="acao" value="memoria">Exibir memória de cálculo</button>
             <button class="btn btn-primary" type="submit" name="acao" value="inserir">Inserir item na proposta</button>
@@ -150,7 +149,7 @@
         {% endif %}
       {% else %}
         <h3>Inserir suprimento</h3>
-        <p class="muted">Selecione um pré-cadastro ou preencha manualmente.</p>
+        <p class="muted">Selecione um pré-cadastro ou preencha manualmente. Campos nativos já vêm preenchidos.</p>
         <form method="post" action="/orcamentos/novo/suprimento" id="form-suprimento">
           <div class="form-grid">
             <div class="span-2">
@@ -199,13 +198,12 @@
               <input name="quantidade" type="number" step="1" min="0" placeholder="(inserir)" value="{{ form_vals.quantidade or '' }}" />
             </div>
           </div>
-          {% if preview_item %}
-          <div class="metrics">
-            <div><span class="muted">Venda unitária</span><strong>{{ brl(preview_item.unitario) }}</strong></div>
-            <div><span class="muted">Venda total</span><strong>{{ brl(preview_item.total) }}</strong></div>
-            <div><span class="muted">Lucro do item</span><strong>{{ brl(preview_item.lucro) }}</strong></div>
+          <div class="metrics live-metrics">
+            <div><span class="muted">Venda unitária</span><strong id="sup-unit">R$ 0,00</strong></div>
+            <div><span class="muted">Venda total do item</span><strong id="sup-total">R$ 0,00</strong></div>
+            <div><span class="muted">Lucro total do item</span><strong id="sup-lucro">R$ 0,00</strong></div>
           </div>
-          {% endif %}
+          <p class="muted" id="sup-hint">Preencha/selecione os campos — os valores atualizam ao completar.</p>
           <div class="btn-row">
             <button class="btn" type="submit" name="acao" value="memoria">Exibir memória de cálculo</button>
             <button class="btn btn-primary" type="submit" name="acao" value="inserir">Inserir item na proposta</button>
@@ -429,18 +427,6 @@
 </div>
 {% endif %}
 
-<script>
-(function () {
-  var sel = document.getElementById('sup-catalogo');
-  if (!sel) return;
-  sel.addEventListener('change', function () {
-    var opt = sel.options[sel.selectedIndex];
-    var desc = document.getElementById('sup-desc');
-    var custo = document.getElementById('sup-custo');
-    if (!opt || !opt.value) return;
-    if (desc && opt.dataset.desc) desc.value = opt.dataset.desc;
-    if (custo && opt.dataset.custo) custo.value = opt.dataset.custo;
-  });
-})();
-</script>
+<script id="orc-cat" type="application/json">{{ cat_json | tojson }}</script>
+<script src="/static/js/orcamento_preview.js"></script>
 {% endblock %}

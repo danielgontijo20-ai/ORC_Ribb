@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}NF {{ nota.numero_nota }} — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="topbar">
+  <h1 class="brand">NF {{ nota.numero_nota }}</h1>
+  <div class="userbox"><a class="btn btn-ghost" href="/historico-vendas">← Histórico</a></div>
+</div>
+
+<div class="card surface">
+  <div class="preview-head">
+    <div>
+      <div><strong>Cliente:</strong> {{ nota.nome_cliente or '-' }}</div>
+      <div><strong>CNPJ:</strong> {{ nota.cnpj_cpf or '-' }}</div>
+    </div>
+    <div class="preview-right">
+      <div><strong>Emissão:</strong> {{ nota.data_emissao or '-' }}</div>
+      <div><strong>Total da nota:</strong> {{ brl(nota.valor_nota) }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="card surface">
+  <h3>Itens da venda</h3>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Descrição</th>
+          <th>Und</th>
+          <th>Qtd vendida</th>
+          <th>Valor unitário</th>
+          <th>Valor total</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for it in nota.itens %}
+        <tr>
+          <td>{{ it.codigo_item or '-' }}</td>
+          <td>{{ it.descricao_item or '-' }}</td>
+          <td>{{ it.unidade or '-' }}</td>
+          <td>{{ '%.2f'|format(it.quantidade or 0) }}</td>
+          <td>{{ brl(it.valor_unitario) }}</td>
+          <td>{{ brl(it.valor_total) }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="6">Sem itens.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

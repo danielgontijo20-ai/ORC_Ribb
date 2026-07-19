@@ -108,6 +108,7 @@ def _ctx_novo(request: Request, conn, user, *, form_vals: dict | None = None) ->
     if frete_exibicao == "Taxa" and proposta.get("frete_taxa"):
         frete_exibicao = f"Taxa: {proposta.get('frete_taxa')}"
 
+    cats = _catalogos(conn)
     return {
         "user": user,
         "cfg": cfg,
@@ -133,7 +134,7 @@ def _ctx_novo(request: Request, conn, user, *, form_vals: dict | None = None) ->
         "frete_exibicao": frete_exibicao,
         "form_vals": form_vals or {},
         "preview_item": None,
-        **_catalogos(conn),
+        **cats,
         "defaults": {
             "unidade_etiqueta": cfg.get("unidade_etiqueta", "Rol"),
             "unidade_suprimentos": cfg.get("unidade_suprimentos", "UN"),
@@ -142,6 +143,36 @@ def _ctx_novo(request: Request, conn, user, *, form_vals: dict | None = None) ->
             "lucro_suprimentos": get_float(cfg, "lucro_suprimentos_padrao", 0.20),
             "frete": get_float(cfg, "frete_padrao", 0.0),
             "difal": (cfg.get("difal_padrao") or "SIM").upper(),
+        },
+        "cat_json": {
+            "facas": {
+                f["tipo_faca"]: {
+                    "area": float(f["area"] or 0),
+                    "nome_orc": f.get("nome_exibicao_orc") or f["tipo_faca"],
+                }
+                for f in cats["facas"]
+            },
+            "materias": {
+                m["nome"]: {
+                    "custo": float(m["custo"] or 0),
+                    "nome_orc": m.get("nome_exibicao_orc") or m["nome"],
+                }
+                for m in cats["materias"]
+            },
+            "tubetes": {
+                t["nome"]: {
+                    "custo": float(t["custo"] or 0),
+                    "nome_orc": t.get("nome_exibicao_orc") or t["nome"],
+                }
+                for t in cats["tubetes"]
+            },
+            "caixas": {
+                c["nome"]: {"custo": float(c["custo"] or 0)}
+                for c in cats["caixas"]
+            },
+            "imposto_etiqueta": 0.92,
+            "imposto_suprimentos": 0.91,
+            "aliquota_difal": 0.073,
         },
     }
 
@@ -229,6 +260,17 @@ def novo(request: Request):
     return render(request, "orcamento_novo.html", ctx)
 
 
+@router.post("/novo/iniciar")
+def iniciar_limpo(request: Request):
+    """Entrada pelo menu: orçamento zerado, como na versão 1."""
+    user, err = _require_user(request, "orcamento.criar")
+    if err:
+        return err
+    with connect() as conn:
+        ps.reiniciar_proposta(request, conn)
+    return _redirect_novo()
+
+
 @router.post("/novo/limpar")
 def limpar(request: Request):
     user, err = _require_user(request, "orcamento.criar")
@@ -247,6 +289,8 @@ def set_modo_form(request: Request, modo: str = Form(...)):
         return err
     if modo in ("etiqueta", "suprimentos"):
         ps.set_modo(request, modo)
+        # formulário de inserção sempre limpo ao abrir (só nativos)
+        request.session.pop("web_form_vals", None)
     elif modo == "fechar":
         ps.set_modo(request, None)
     return _redirect_novo()
