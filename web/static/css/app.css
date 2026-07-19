@@ -527,7 +527,7 @@ input:disabled, select:disabled, textarea:disabled {
 
 .logo-preview {
   display: block;
-  max-width: 720px; /* +50% sobre 480px */
+  max-width: 360px; /* -50% sobre 720px */
   width: 100%;
   height: auto;
   margin: 0 0 0.85rem;
