@@ -146,3 +146,10 @@ def totais_proposta() -> tuple[float, float, float]:
     lucro = sum(i.get("lucro_total", 0) or 0 for i in itens)
     frete = sum(i.get("frete_item", 0) or 0 for i in itens)
     return valor, lucro, frete
+
+
+def media_lucro_pct_proposta() -> float:
+    from src.ui.memoria_ui import media_lucro_pct_proporcional
+
+    itens = st.session_state.proposta.get("itens", [])
+    return media_lucro_pct_proporcional(itens)

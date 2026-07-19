@@ -18,8 +18,6 @@ from src.services.cadastros import (
     obter_tubete_por_nome,
 )
 from src.services.calculos_orcamento import (
-    ResultadoEtiqueta,
-    ResultadoSuprimentos,
     calcular_orcamento_etiqueta,
     calcular_orcamento_suprimentos,
 )
@@ -38,11 +36,13 @@ from src.services.orcamentos import salvar_orcamento
 from src.services.pdf_proposta import gerar_pdf_proposta
 from src.ui.formatters import brl, texto_ou_traco
 from src.ui.grid_select import dataframe_selecionavel
+from src.ui.memoria_ui import render_memoria_completa
 from src.ui.scroll import aplicar_scroll_se_pedido, marcar_scroll_form
 from src.ui.state import (
     bump_form_seq,
     consumir_flash,
     flash_sucesso,
+    media_lucro_pct_proposta,
     reiniciar_proposta,
     totais_proposta,
     voltar,
@@ -111,8 +111,8 @@ def render_novo_orcamento(conn) -> None:
     if readonly:
         st.info("Modo consulta: alterações desabilitadas.")
 
-    if not readonly:
-        _render_dialogs(cfg)
+    # Dialogs também no modo consulta (memória de cálculo)
+    _render_dialogs(cfg)
 
     # Duas colunas no mesmo nível: cliente/formação | prévia (sempre no topo)
     try:
@@ -206,15 +206,25 @@ def _painel_esquerda(conn, cfg, proposta, *, readonly: bool = False) -> None:
                     st.rerun()
 
         valor_total, lucro_total, frete_total = totais_proposta()
+        media_lucro = media_lucro_pct_proposta()
         st.markdown(
             f'<div class="orc-total-bar">Valor total dos itens: {brl(valor_total)}</div>',
             unsafe_allow_html=True,
         )
-        k1, k2, k3 = st.columns(3)
+        k1, k2, k3, k4 = st.columns(4)
         k1.metric("Lucro total", brl(lucro_total))
-        k2.metric("Frete total incluso", brl(frete_total))
-        with k3:
+        k2.metric("Média lucro %", f"{media_lucro:.2f}%".replace(".", ","))
+        k3.metric("Frete total incluso", brl(frete_total))
+        with k4:
             st.write("")
+            if st.button(
+                "Memória de cálculo",
+                use_container_width=True,
+                key="btn_memoria_proposta",
+            ):
+                st.session_state.memoria_calculo = None  # só itens da proposta
+                st.session_state.show_dialog = "memoria"
+                st.rerun()
             if not readonly and st.button(
                 "Gerar PDF da proposta", use_container_width=True, type="primary"
             ):
@@ -941,19 +951,11 @@ def _dialog_condicoes(cfg) -> None:
         st.rerun()
 
 
-@st.dialog("Memória de cálculo")
+@st.dialog("Memória de cálculo", width="large")
 def _dialog_memoria() -> None:
-    mem = st.session_state.get("memoria_calculo")
-    if not mem:
-        st.warning("Sem memória de cálculo.")
-        return
-    st.write(f"Tipo: **{mem['tipo']}**")
-    st.json(mem.get("params") or {})
-    resultado = mem.get("resultado")
-    if isinstance(resultado, (ResultadoEtiqueta, ResultadoSuprimentos)):
-        st.json(resultado.to_dict())
-    elif isinstance(resultado, dict):
-        st.json(resultado)
-    if st.button("Fechar"):
+    itens = (st.session_state.get("proposta") or {}).get("itens") or []
+    rascunho = st.session_state.get("memoria_calculo")
+    render_memoria_completa(itens=itens, rascunho=rascunho)
+    if st.button("Fechar", key="mem_fechar"):
         st.session_state.show_dialog = None
         st.rerun()

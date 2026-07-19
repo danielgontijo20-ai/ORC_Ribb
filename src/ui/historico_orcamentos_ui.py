@@ -13,6 +13,7 @@ from src.services.orcamentos import (
 )
 from src.ui.formatters import brl
 from src.ui.grid_select import dataframe_selecionavel
+from src.ui.memoria_ui import render_memorias_itens
 from src.ui.state import bump_form_seq, flash_sucesso, ir_para, voltar
 
 
@@ -157,8 +158,8 @@ def _painel_detalhe(conn, orcamento_id: int) -> None:
             f"**Criado em:** {orc.get('criado_em')}  \n"
             f"**Atualizado em:** {orc.get('atualizado_em')}"
         )
-        itens = orc.get("itens") or []
-        if itens:
+        itens_db = orc.get("itens") or []
+        if itens_db:
             st.dataframe(
                 pd.DataFrame(
                     [
@@ -170,16 +171,27 @@ def _painel_detalhe(conn, orcamento_id: int) -> None:
                             "Preço Unit.": it.get("preco_unitario"),
                             "Valor total": it.get("preco_total"),
                         }
-                        for i, it in enumerate(itens)
+                        for i, it in enumerate(itens_db)
                     ]
                 ),
                 use_container_width=True,
                 hide_index=True,
             )
-        c1, c2, _ = st.columns(3)
+        c1, c2, c3 = st.columns(3)
         with c1:
             if st.button("Abrir este (somente leitura)", key="det_abrir"):
                 _abrir_readonly(conn, orcamento_id)
         with c2:
             if st.button("Clonar este", key="det_clonar"):
                 _clonar(conn, orcamento_id)
+        with c3:
+            mostrar_mem = st.button("Ver memória de cálculo", key="det_memoria")
+
+        if mostrar_mem or st.session_state.get("hist_orc_show_mem") == orcamento_id:
+            st.session_state.hist_orc_show_mem = orcamento_id
+            st.markdown("#### Memória de cálculo")
+            # Converte itens do banco para o formato da proposta (calculo/parametros)
+            from src.services.orcamentos import orcamento_para_proposta
+
+            prop = orcamento_para_proposta(orc)
+            render_memorias_itens(prop.get("itens") or [], key_prefix=f"hist_mem_{orcamento_id}")
