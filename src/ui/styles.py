@@ -135,11 +135,12 @@ APP_CSS = """
     }
     .menu-logo {
         display: flex;
-        align-items: center;
-        justify-content: center;
+        align-items: flex-start;
+        justify-content: flex-start;
         width: 100%;
-        min-height: 14rem;
-        padding: 0.25rem 0.5rem;
+        min-height: 0;
+        padding: 0;
+        margin: 0;
         background: transparent;
         border: none !important;
         box-shadow: none !important;
@@ -148,6 +149,18 @@ APP_CSS = """
         max-width: 100%;
         height: auto;
         object-fit: contain;
+        display: block;
+        margin: 0;
+    }
+    .menu-logo-host {
+        margin: 0;
+        padding: 0;
+    }
+    /* Alinha o topo da imagem ao topo do botão NOVO ORC */
+    .menu-logo-host [data-testid="stImage"],
+    .menu-logo-host [data-testid="stImage"] img {
+        margin-top: 0 !important;
+        padding-top: 0 !important;
     }
     /* Remove borda/sombra de wrappers ao redor da logo do menu */
     div[data-testid="stVerticalBlockBorderWrapper"]:has(.menu-logo),

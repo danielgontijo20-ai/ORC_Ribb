@@ -68,6 +68,9 @@ def ir_para(tela: str, *, cadastro_tela: str | None = None, modo_form=None) -> N
     if tela == "historico":
         st.session_state.hist_resultado = None
         st.session_state.hist_resultado_label = None
+        st.session_state.hist_cliente = None
+        if st.session_state.get("show_dialog") == "hist_cliente":
+            st.session_state.show_dialog = None
 
     # Histórico de orçamentos: limpa seleção ao entrar
     if tela == "historico_orcamentos":

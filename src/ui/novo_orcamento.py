@@ -270,10 +270,20 @@ def _painel_esquerda(conn, cfg, proposta, *, readonly: bool = False) -> None:
             ):
                 _salvar_formacao_orcamento(conn, proposta)
         with b3:
-            pdf_ok = proposta_esta_salva() and bool(proposta.get("itens")) and bool(
-                proposta.get("cliente")
-            )
-            if not readonly:
+            tem_base = bool(proposta.get("itens")) and bool(proposta.get("cliente"))
+            if readonly:
+                if st.button(
+                    "Gerar PDF da proposta",
+                    use_container_width=True,
+                    type="primary",
+                    key="btn_gerar_pdf_ro",
+                    disabled=not tem_base,
+                ):
+                    _gerar_e_oferecer_pdf(
+                        conn, cfg, proposta, somente_pdf=True
+                    )
+            else:
+                pdf_ok = proposta_esta_salva() and tem_base
                 if st.button(
                     "Gerar PDF da proposta",
                     use_container_width=True,
@@ -618,8 +628,8 @@ def _form_suprimentos_body(conn, cfg, proposta) -> None:
     difal_nativo = cfg.get("difal_padrao", "SIM").upper()
     difal_idx = difal_opts.index(difal_nativo) if difal_nativo in difal_opts else 1
 
-    # Tab: esquerda → direita, depois linha de baixo
-    # Descrição→Difal | Custo→Frete | Unidade→Lucro | Quantidade
+    # Tab: após descrição (cadastro ou manual) → valor do frete
+    # Descrição→Frete | Custo→Difal | Unidade→Lucro | Quantidade
     r1l, r1r = st.columns(2)
     with r1l:
         descricao_in = st.text_input(
@@ -629,11 +639,12 @@ def _form_suprimentos_body(conn, cfg, proposta) -> None:
             key=desc_key,
         )
     with r1r:
-        difal_sel = st.selectbox(
-            "Difal (nativo)",
-            difal_opts,
-            index=difal_idx,
-            key=_fk("sup_difal"),
+        frete = st.number_input(
+            "Valor do frete (nativo)",
+            min_value=0.0,
+            value=get_float(cfg, "frete_padrao", 0.0),
+            step=10.0,
+            key=_fk("sup_frete"),
         )
 
     r2l, r2r = st.columns(2)
@@ -648,12 +659,11 @@ def _form_suprimentos_body(conn, cfg, proposta) -> None:
             key=custo_key,
         )
     with r2r:
-        frete = st.number_input(
-            "Valor do frete (nativo)",
-            min_value=0.0,
-            value=get_float(cfg, "frete_padrao", 0.0),
-            step=10.0,
-            key=_fk("sup_frete"),
+        difal_sel = st.selectbox(
+            "Difal (nativo)",
+            difal_opts,
+            index=difal_idx,
+            key=_fk("sup_difal"),
         )
 
     r3l, r3r = st.columns(2)
@@ -954,7 +964,9 @@ def _painel_proposta(conn, cfg, proposta, *, readonly: bool = False) -> None:
             st.rerun()
 
 
-def _gerar_e_oferecer_pdf(conn, cfg, proposta) -> None:
+def _gerar_e_oferecer_pdf(
+    conn, cfg, proposta, *, somente_pdf: bool = False
+) -> None:
     if not proposta.get("cliente"):
         st.error("Selecione um cliente.")
         return
@@ -964,14 +976,17 @@ def _gerar_e_oferecer_pdf(conn, cfg, proposta) -> None:
 
     progress = st.progress(0, text="Preparando orçamento...")
     try:
-        progress.progress(20, text="Gerando número e gravando no histórico...")
-        if not proposta.get("numero"):
-            _garantir_numero(conn, proposta)
-        valor_total, _, _ = totais_proposta()
-        salvar_orcamento(conn, proposta, status=STATUS_GERADO)
-        proposta["status"] = STATUS_GERADO
+        if somente_pdf:
+            progress.progress(25, text="Montando PDF da proposta...")
+        else:
+            progress.progress(20, text="Gerando número e gravando no histórico...")
+            if not proposta.get("numero"):
+                _garantir_numero(conn, proposta)
+            salvar_orcamento(conn, proposta, status=STATUS_GERADO)
+            proposta["status"] = STATUS_GERADO
+            progress.progress(55, text="Montando PDF da proposta...")
 
-        progress.progress(55, text="Montando PDF da proposta...")
+        valor_total, _, _ = totais_proposta()
         cliente = proposta["cliente"]
         frete_exibicao = proposta.get("frete_tipo", "CIF")
         if frete_exibicao == "Taxa" and proposta.get("frete_taxa"):
@@ -1002,10 +1017,15 @@ def _gerar_e_oferecer_pdf(conn, cfg, proposta) -> None:
         progress.progress(100, text="PDF pronto.")
         st.session_state["_pdf_bytes"] = pdf_bytes
         st.session_state["_pdf_name"] = f"{proposta.get('numero') or 'proposta'}.pdf"
-        flash_sucesso(
-            f"Orçamento {proposta.get('numero')} com status "
-            f"**{label_status(STATUS_GERADO)}** — PDF pronto."
-        )
+        if somente_pdf:
+            flash_sucesso(
+                f"PDF do orçamento {proposta.get('numero') or ''} gerado novamente."
+            )
+        else:
+            flash_sucesso(
+                f"Orçamento {proposta.get('numero')} com status "
+                f"**{label_status(STATUS_GERADO)}** — PDF pronto."
+            )
     finally:
         progress.empty()
 
@@ -1016,7 +1036,7 @@ def _gerar_e_oferecer_pdf(conn, cfg, proposta) -> None:
             file_name=st.session_state.get("_pdf_name") or "proposta.pdf",
             mime="application/pdf",
             use_container_width=True,
-            key="btn_download_pdf",
+            key="btn_download_pdf_ro" if somente_pdf else "btn_download_pdf",
         )
 
 

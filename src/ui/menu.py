@@ -19,8 +19,9 @@ def render_menu(conn) -> None:
         unsafe_allow_html=True,
     )
 
+    # Topo alinhado: logo e botão NOVO ORC começam na mesma linha
     try:
-        left, right = st.columns([1, 2], gap="large", vertical_alignment="center")
+        left, right = st.columns([1, 2], gap="large", vertical_alignment="top")
     except TypeError:
         left, right = st.columns([1, 2], gap="large")
 
@@ -39,7 +40,10 @@ def render_menu(conn) -> None:
 
     with right:
         logo = cfg.get("logo_master") or ""
-        st.markdown('<div class="menu-logo-host"><div class="menu-logo">', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="menu-logo-host"><div class="menu-logo">',
+            unsafe_allow_html=True,
+        )
         if logo and Path(logo).exists():
             st.image(logo, use_container_width=True)
         else:
