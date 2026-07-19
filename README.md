@@ -4,23 +4,39 @@ Sistema para geração de orçamentos (etiquetas e suprimentos).
 
 ## Stack
 
-- Python + Streamlit + SQLite
-- pandas / openpyxl (planilha)
-- reportlab (PDF)
+- **Versão 01 (local):** Python + Streamlit + SQLite  
+- **Web (fase 1):** FastAPI + Jinja2 + login/permissões + SQLite  
+- pandas / openpyxl / reportlab
 
-## Como rodar (Windows)
+## Backup Versão 01
+
+```bash
+git fetch --tags
+git checkout versao01
+# ou: git checkout cursor/versao01-3237
+```
+
+## Como rodar — Web (recomendado)
 
 ```powershell
 cd C:\Users\dani_\ORC_Ribb
 git fetch origin
-git checkout cursor/etapa5-layout-pptx-3237
-git pull origin cursor/etapa5-layout-pptx-3237
+git checkout cursor/web-fastapi-auth-3237
+git pull origin cursor/web-fastapi-auth-3237
 
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -m src.db.import_banco_rbt
 python -m src.db.migrate
+python -m uvicorn web.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+Abre `http://localhost:8000/login`  
+Usuário inicial: `admin@ribbontech.com` / `admin123`
+
+## Como rodar — Streamlit (Versão 01)
+
+```powershell
 python -m streamlit run app.py
 ```
 

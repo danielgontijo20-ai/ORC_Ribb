@@ -14,6 +14,7 @@ from pathlib import Path
 from .database import DB_PATH, ROOT_DIR, connect, init_db
 from .defaults_config import DEFAULT_CONFIG, ensure_config_defaults
 from .import_banco_rbt import import_suprimentos
+from src.services.usuarios import ensure_auth_seed
 
 
 def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
@@ -87,6 +88,13 @@ def migrate(db_path=DB_PATH) -> None:
 
         # Status: rascunho | gerado | aprovado (+ legado finalizado)
         _migrate_orcamentos_status(conn)
+
+        # Auth web: usuários / papéis / permissões
+        auth_sql = Path(__file__).resolve().parent / "auth_schema.sql"
+        if auth_sql.exists():
+            conn.executescript(auth_sql.read_text(encoding="utf-8"))
+            ensure_auth_seed(conn)
+            print("+ auth: tabelas e seed de usuários/papéis")
 
         # Suprimentos: importa pré-cadastro se a tabela estiver vazia
         n_sup = conn.execute("SELECT COUNT(*) c FROM suprimentos").fetchone()["c"]

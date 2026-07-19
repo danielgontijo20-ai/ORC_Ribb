@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Orçamento {{ orc.numero }} — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="topbar">
+  <h1 class="brand">{{ orc.numero or orc.id }}</h1>
+  <div class="userbox"><a href="/orcamentos">← Voltar</a></div>
+</div>
+
+<div class="card">
+  <p>
+    <strong>Cliente:</strong> {{ orc.cliente_nome or '-' }}<br/>
+    <strong>CNPJ:</strong> {{ orc.cliente_doc or '-' }}<br/>
+    <strong>Status:</strong> <span class="badge">{{ status_label }}</span><br/>
+    <strong>Valor total:</strong> R$ {{ '%.2f'|format(orc.valor_total or 0) }}<br/>
+    <strong>Lucro:</strong> R$ {{ '%.2f'|format(orc.lucro_total or 0) }}<br/>
+    <strong>Criado em:</strong> {{ orc.criado_em }}<br/>
+    <strong>Atualizado em:</strong> {{ orc.atualizado_em }}
+  </p>
+
+  <div class="btn-row">
+    {% if pode_pdf %}
+    <a class="btn btn-primary" href="/orcamentos/{{ orc.id }}/pdf">Gerar PDF</a>
+    {% endif %}
+    {% if pode_aprovar %}
+    <form method="post" action="/orcamentos/{{ orc.id }}/aprovar" style="margin:0">
+      <button class="btn" type="submit">Aprovado</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<div class="card">
+  <h3>Itens</h3>
+  <table class="data">
+    <thead>
+      <tr>
+        <th>N°</th>
+        <th>Descrição</th>
+        <th>Und</th>
+        <th>Qtd</th>
+        <th>Preço Unit.</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in orc.itens %}
+      <tr>
+        <td>{{ '%02d'|format(loop.index) }}</td>
+        <td>{{ it.descricao }}</td>
+        <td>{{ it.unidade or '-' }}</td>
+        <td>{{ it.quantidade }}</td>
+        <td>{{ '%.2f'|format(it.preco_unitario or 0) }}</td>
+        <td>{{ '%.2f'|format(it.preco_total or 0) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Sem itens.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
