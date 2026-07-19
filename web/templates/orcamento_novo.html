@@ -137,14 +137,16 @@
       </p>
       <p><strong>Observações Adicionais:</strong><br/>{{ proposta.informacoes_adicionais }}</p>
       <div class="preview-foot">
-        <div>
+        <div class="preview-foot-info">
           {{ proposta.orcamentista_nome or '-' }}<br/>
           {{ proposta.orcamentista_cargo or '-' }}<br/>
           {{ proposta.orcamentista_telefone or '-' }}<br/>
           {{ proposta.orcamentista_email or '-' }}
         </div>
         {% if logo_rodape_url %}
-        <img class="logo-rodape" src="{{ logo_rodape_url }}" alt="Logo rodapé" />
+        <div class="preview-foot-logo">
+          <img class="logo-rodape" src="{{ logo_rodape_url }}" alt="Logo rodapé" />
+        </div>
         {% endif %}
       </div>
       {% if not readonly %}

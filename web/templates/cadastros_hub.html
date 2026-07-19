@@ -5,20 +5,24 @@
   <h1 class="brand">Cadastros</h1>
   <div class="userbox"><a class="btn btn-ghost" href="/menu">← Menu</a></div>
 </div>
-<div class="card">
-  <p class="muted">
+
+<div class="card surface menu-shell">
+  <p class="lead">
     {% if pode_editar %}Incluir, editar e excluir registros.
     {% else %}Modo consulta.
     {% endif %}
   </p>
-  <div class="menu-grid">
-    <a href="/cadastros/nativos">Valores Nativos</a>
-    <a href="/cadastros/clientes">Clientes</a>
-    <a href="/cadastros/materias">Matéria Prima</a>
-    <a href="/cadastros/tubetes">Tubetes</a>
-    <a href="/cadastros/facas">Facas</a>
-    <a href="/cadastros/caixas">Caixas</a>
-    <a href="/cadastros/suprimentos">Suprimentos</a>
+
+  <div class="menu-stack">
+    <div class="menu-actions">
+      <a class="menu-btn" href="/cadastros/nativos">VALORES NATIVOS</a>
+      <a class="menu-btn" href="/cadastros/clientes">CLIENTES</a>
+      <a class="menu-btn" href="/cadastros/materias">MATÉRIA PRIMA</a>
+      <a class="menu-btn" href="/cadastros/tubetes">TUBETES</a>
+      <a class="menu-btn" href="/cadastros/facas">FACAS</a>
+      <a class="menu-btn" href="/cadastros/caixas">CAIXAS</a>
+      <a class="menu-btn" href="/cadastros/suprimentos">SUPRIMENTOS</a>
+    </div>
   </div>
 </div>
 {% endblock %}

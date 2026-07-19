@@ -60,6 +60,9 @@ def gerar_pdf_proposta(
     small_right = ParagraphStyle(
         "SmallRight", parent=normal, fontSize=9, leading=12, alignment=TA_RIGHT
     )
+    small_center = ParagraphStyle(
+        "SmallCenter", parent=normal, fontSize=9, leading=12, alignment=TA_CENTER
+    )
     total_style = ParagraphStyle(
         "TotalBR",
         parent=normal,
@@ -72,8 +75,8 @@ def gerar_pdf_proposta(
 
     story = []
 
-    # Logo cabeçalho — margem esquerda
-    logo_w, logo_h = 70.0, 36.0
+    # Logo cabeçalho — ~2x o tamanho anterior (70×36 → 140×72)
+    logo_w, logo_h = 140.0, 72.0
     if logo_cabecalho and Path(logo_cabecalho).exists():
         story.append(_logo_cell(logo_cabecalho, logo_w, logo_h))
         story.append(Spacer(1, 3 * mm))
@@ -241,35 +244,33 @@ def gerar_pdf_proposta(
     )
     story.append(Spacer(1, 8 * mm))
 
-    # Orçamentista: mesmo fluxo/margem esquerda das condições acima (Paragraph direto).
-    # Logo à direita em tabela com padding zerado para não deslocar o texto.
-    rodape_logo_w, rodape_logo_h = 60.0, 30.0
+    # Orçamentista centralizado; logo do rodapé abaixo, no meio da página.
+    rodape_logo_w, rodape_logo_h = 70.0, 36.0
     orcamentista_txt = Paragraph(
         f"{orcamento.get('orcamentista_nome') or '-'}<br/>"
         f"{orcamento.get('orcamentista_cargo') or '-'}<br/>"
         f"{orcamento.get('orcamentista_telefone') or '-'}<br/>"
         f"{orcamento.get('orcamentista_email') or '-'}",
-        small_left,
+        small_center,
     )
-    logo_cell = _logo_cell(logo_rodape, rodape_logo_w, rodape_logo_h)
-    footer = Table(
-        [[orcamentista_txt, logo_cell]],
-        colWidths=[110 * mm, 70 * mm],
-    )
-    footer.setStyle(
-        TableStyle(
-            [
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("ALIGN", (0, 0), (0, 0), "LEFT"),
-                ("ALIGN", (1, 0), (1, 0), "RIGHT"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-                ("TOPPADDING", (0, 0), (-1, -1), 0),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-            ]
+    footer_parts = [orcamentista_txt, Spacer(1, 4 * mm)]
+    if logo_rodape and Path(logo_rodape).exists():
+        logo_cell = _logo_cell(logo_rodape, rodape_logo_w, rodape_logo_h)
+        logo_table = Table([[logo_cell]], colWidths=[180 * mm])
+        logo_table.setStyle(
+            TableStyle(
+                [
+                    ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+                    ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                    ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                    ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                    ("TOPPADDING", (0, 0), (-1, -1), 0),
+                    ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+                ]
+            )
         )
-    )
-    story.append(KeepTogether([footer]))
+        footer_parts.append(logo_table)
+    story.append(KeepTogether(footer_parts))
 
     doc.build(story)
     return buffer.getvalue()
