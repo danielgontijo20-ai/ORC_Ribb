@@ -18,6 +18,12 @@
   </p>
 
   <div class="btn-row">
+    {% if pode_editar %}
+    <form method="post" action="/orcamentos/novo/continuar" style="margin:0">
+      <input type="hidden" name="orcamento_id" value="{{ orc.id }}" />
+      <button class="btn btn-primary" type="submit">Continuar / editar</button>
+    </form>
+    {% endif %}
     {% if pode_pdf %}
     <a class="btn btn-primary" href="/orcamentos/{{ orc.id }}/pdf">Gerar PDF</a>
     {% endif %}

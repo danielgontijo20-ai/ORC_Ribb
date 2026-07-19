@@ -35,7 +35,7 @@ Abra `http://localhost:8000/login`
 - Histórico de vendas (lista)
 
 ## Próxima fase
-- Formulário completo de novo orçamento (etiqueta/suprimento) na web
+- ~~Formulário completo de novo orçamento (etiqueta/suprimento) na web~~ → ver `docs/web-fase2.md`
 - Edição de cadastros na web
 - Gestão de usuários na interface
 - PostgreSQL/MySQL em produção (opcional/recomendado)
