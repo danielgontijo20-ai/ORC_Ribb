@@ -1,0 +1,27 @@
+{% if custo_logs %}
+<div class="card surface" style="margin-top:1rem">
+  <h3>Log de alterações de custo</h3>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Quando</th>
+          <th>Usuário</th>
+          <th>Anterior</th>
+          <th>Novo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for l in custo_logs %}
+        <tr>
+          <td>{{ l.criado_em }}</td>
+          <td>{{ l.usuario_nome or '-' }}</td>
+          <td>{{ brl(l.valor_anterior) if l.valor_anterior is not none else '-' }}</td>
+          <td>{{ brl(l.valor_novo) if l.valor_novo is not none else '-' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}

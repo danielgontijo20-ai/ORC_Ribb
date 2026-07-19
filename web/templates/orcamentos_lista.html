@@ -4,11 +4,11 @@
 <div class="topbar">
   <h1 class="brand">Histórico de Orçamentos</h1>
   <div class="userbox">
-    <a href="/menu">← Menu</a>
+    <a class="btn btn-ghost" href="/menu">← Menu</a>
   </div>
 </div>
 
-<div class="card">
+<div class="card surface">
   <form class="filters" method="get" action="/orcamentos">
     <div>
       <label>Número</label>
@@ -33,6 +33,7 @@
   </form>
 
   <p class="muted">{{ lista|length }} orçamento(s)</p>
+  <div class="table-wrap">
   <table class="data">
     <thead>
       <tr>
@@ -50,14 +51,22 @@
         <td>{{ r.numero or '-' }}</td>
         <td>{{ r.cliente_nome or '-' }}</td>
         <td><span class="badge">{{ r.status_label }}</span></td>
-        <td>{{ '%.2f'|format(r.valor_total or 0) }}</td>
+        <td>{{ brl(r.valor_total or 0) }}</td>
         <td>{{ r.atualizado_em or '-' }}</td>
-        <td><a href="/orcamentos/{{ r.id }}">Abrir</a></td>
+        <td class="row-actions">
+          <a class="btn btn-sm btn-primary" href="/orcamentos/{{ r.id }}">Abrir</a>
+          {% if pode_criar %}
+          <form method="post" action="/orcamentos/{{ r.id }}/clonar" style="display:inline;margin:0">
+            <button class="btn btn-sm btn-primary" type="submit">Clonar</button>
+          </form>
+          {% endif %}
+        </td>
       </tr>
       {% else %}
       <tr><td colspan="6">Nenhum orçamento encontrado.</td></tr>
       {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
 {% endblock %}

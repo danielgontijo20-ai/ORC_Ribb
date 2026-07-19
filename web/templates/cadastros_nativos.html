@@ -9,8 +9,8 @@
 {% if flash_ok %}<div class="ok">{{ flash_ok }}</div>{% endif %}
 {% if flash_err %}<div class="error">{{ flash_err }}</div>{% endif %}
 
-<div class="card">
-  <form method="post" action="/cadastros/nativos">
+<div class="card surface">
+  <form method="post" action="/cadastros/nativos" enctype="multipart/form-data">
     <h3>Empresa</h3>
     <div class="form-grid">
       <div><label>Nome</label><input name="empresa_nome" value="{{ cfg.empresa_nome or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
@@ -69,7 +69,19 @@
       <div><label>E-mail</label><input name="orcamentista_email" value="{{ cfg.orcamentista_email or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
     </div>
 
+    <h3 style="margin-top:1.2rem">Logos (upload)</h3>
+    <p class="muted">Sugestão: Master 1200×330 px | Cabeçalho/Rodapé 240×124 px (ou 480×250 px)</p>
+    <div class="logo-previews">
+      {% if logo_master_url %}<div><span class="muted">Master atual</span><img src="{{ logo_master_url }}" alt="master" /></div>{% endif %}
+      {% if logo_cabecalho_url %}<div><span class="muted">Cabeçalho atual</span><img src="{{ logo_cabecalho_url }}" alt="cabecalho" /></div>{% endif %}
+      {% if logo_rodape_url %}<div><span class="muted">Rodapé atual</span><img src="{{ logo_rodape_url }}" alt="rodape" /></div>{% endif %}
+    </div>
     {% if pode_editar %}
+    <div class="form-grid">
+      <div><label>Logo master</label><input type="file" name="logo_master" accept=".png,.jpg,.jpeg,.webp" /></div>
+      <div><label>Logo cabeçalho</label><input type="file" name="logo_cabecalho" accept=".png,.jpg,.jpeg,.webp" /></div>
+      <div><label>Logo rodapé</label><input type="file" name="logo_rodape" accept=".png,.jpg,.jpeg,.webp" /></div>
+    </div>
     <div class="btn-row">
       <button class="btn btn-primary" type="submit">Salvar valores nativos</button>
     </div>

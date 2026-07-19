@@ -14,11 +14,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from src.db.database import connect
+from src.db.database import ROOT_DIR, connect
 from src.db.migrate import migrate
 from src.services.usuarios import autenticar
 from web.config import APP_NAME, SECRET_KEY, SESSION_MAX_AGE
 from web.deps import get_current_user
+from web.logos import ensure_logo_dir
 from web.routes import cadastros, historico_vendas, menu, orcamentos, usuarios
 from web.templating import render
 
@@ -34,6 +35,12 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+ensure_logo_dir()
+app.mount(
+    "/media/logos",
+    StaticFiles(directory=str(ROOT_DIR / "data" / "logos")),
+    name="logos",
+)
 
 app.include_router(menu.router)
 app.include_router(orcamentos.router)

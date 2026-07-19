@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Memória — {{ orc.numero or orc.id }}{% endblock %}
+{% block body %}
+<div class="topbar">
+  <h1 class="brand">Memória de cálculo</h1>
+  <div class="userbox"><a class="btn btn-ghost" href="/orcamentos/{{ orc.id }}">← Voltar</a></div>
+</div>
+
+<div class="card surface">
+  <p>
+    <strong>{{ orc.numero or orc.id }}</strong> ·
+    <span class="badge">{{ status_label }}</span> ·
+    {{ orc.cliente_nome or '-' }}
+  </p>
+  {% if pode_pdf %}
+  <div class="btn-row">
+    <a class="btn btn-primary" href="/orcamentos/{{ orc.id }}/memoria/pdf">Gerar PDF da memória</a>
+  </div>
+  {% endif %}
+</div>
+
+{% if memoria_linhas %}
+  {% for bloco in memoria_linhas %}
+  <div class="card surface" id="mem-{{ loop.index }}">
+    <h3>{{ bloco.titulo }}</h3>
+    <div class="form-grid">
+      <div>
+        <strong>Parâmetros</strong>
+        <ul class="mem-list">
+          {% for k,v in bloco.params.items() %}<li><span class="muted">{{ k }}:</span> {{ v }}</li>{% endfor %}
+        </ul>
+      </div>
+      <div>
+        <strong>Cálculo</strong>
+        <ul class="mem-list">
+          {% for k,v in bloco.calc.items() %}
+          <li>
+            <span class="muted">{{ k }}:</span>
+            {% if v is number and ('custo' in k or 'preco' in k or 'preço' in k or 'frete' in k or 'lucro' in k or 'valor' in k or 'difal' in k) %}
+              {{ brl(v) }}
+            {% else %}
+              {{ v }}
+            {% endif %}
+          </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="card"><p class="muted">Sem dados de memória neste orçamento.</p></div>
+{% endif %}
+{% endblock %}

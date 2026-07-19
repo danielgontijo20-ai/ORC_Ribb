@@ -9,26 +9,41 @@
   </div>
 </div>
 
-<div class="card">
-  <p class="muted">Menu principal — acesso conforme suas permissões.</p>
-  <div class="menu-grid">
-    {% if has_perm(user, 'orcamento.criar') %}
-    <form method="post" action="/orcamentos/novo/iniciar" class="menu-form">
-      <button type="submit">NOVO ORÇAMENTO</button>
-    </form>
-    {% endif %}
-    {% if has_perm(user, 'orcamento.ver') %}
-    <a href="/orcamentos">HISTÓRICO DE ORÇAMENTOS</a>
-    {% endif %}
-    {% if has_perm(user, 'cadastros.ver') %}
-    <a href="/cadastros">CADASTROS</a>
-    {% endif %}
-    {% if has_perm(user, 'historico_vendas.ver') %}
-    <a href="/historico-vendas">HISTÓRICO DE VENDAS</a>
-    {% endif %}
-    {% if has_perm(user, 'usuarios.gerenciar') %}
-    <a href="/usuarios">USUÁRIOS</a>
-    {% endif %}
+<div class="card surface menu-shell">
+  <p class="lead">Menu principal — elabore orçamentos, gerencie cadastros e consulte o histórico.</p>
+
+  <div class="menu-stack">
+    <div class="menu-logo-block">
+      {% if logo_master_url %}
+      <img src="{{ logo_master_url }}" alt="Logo" class="menu-logo-img" />
+      {% else %}
+      <div class="menu-logo-placeholder">
+        <strong>Logo Master</strong>
+        <span>Faça upload em Cadastros → Valores Nativos</span>
+        <span class="muted">Sugestão: 1200 × 330 px</span>
+      </div>
+      {% endif %}
+    </div>
+
+    <div class="menu-actions">
+      {% if has_perm(user, 'orcamento.criar') %}
+      <form method="post" action="/orcamentos/novo/iniciar" class="menu-form">
+        <button type="submit">NOVO ORÇAMENTO</button>
+      </form>
+      {% endif %}
+      {% if has_perm(user, 'orcamento.ver') %}
+      <a class="menu-btn" href="/orcamentos">HISTÓRICO DE ORÇAMENTOS</a>
+      {% endif %}
+      {% if has_perm(user, 'cadastros.ver') %}
+      <a class="menu-btn" href="/cadastros">CADASTROS</a>
+      {% endif %}
+      {% if has_perm(user, 'historico_vendas.ver') %}
+      <a class="menu-btn" href="/historico-vendas">HISTÓRICO DE VENDAS</a>
+      {% endif %}
+      {% if has_perm(user, 'usuarios.gerenciar') %}
+      <a class="menu-btn" href="/usuarios">USUÁRIOS</a>
+      {% endif %}
+    </div>
   </div>
 </div>
 {% endblock %}

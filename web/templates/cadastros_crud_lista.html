@@ -36,7 +36,13 @@
         {% for row in linhas %}
         <tr>
           {% for key, label in colunas %}
-          <td>{{ row[key] }}</td>
+          <td>
+            {% if key in ('custo', 'preco_compra', 'preco_unitario', 'valor_total') and row[key] is not none %}
+              {{ brl(row[key]) }}
+            {% else %}
+              {{ row[key] }}
+            {% endif %}
+          </td>
           {% endfor %}
           <td class="row-actions">
             <a class="btn btn-sm btn-primary" href="/cadastros/{{ slug }}/{{ row.id }}">

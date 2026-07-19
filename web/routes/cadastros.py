@@ -26,8 +26,11 @@ from src.services.cadastros import (
 )
 from src.services.clientes import buscar_clientes, contar_clientes, obter_cliente
 from src.services.configuracoes import carregar_config, salvar_config
+from src.services.custo_log import listar_log, registrar_custo
 from src.services.usuarios import usuario_tem_permissao
+from src.ui.formatters import brl
 from web.deps import get_current_user
+from web.logos import logo_url, save_upload
 from web.proposta_session import parse_float
 from web.templating import render
 
@@ -83,7 +86,14 @@ def _ctx_base(request: Request, user) -> dict:
         "pode_editar": usuario_tem_permissao(user, "cadastros.editar"),
         "flash_ok": ok,
         "flash_err": err,
+        "brl": brl,
     }
+
+
+def _log_item(conn, tabela: str, item_id: int | None) -> list:
+    if not item_id:
+        return []
+    return listar_log(conn, tabela=tabela, registro_id=int(item_id), limite=20)
 
 
 def _obter_por_id(conn, table: str, item_id: int):
@@ -115,7 +125,14 @@ def nativos_get(request: Request):
     with connect() as conn:
         cfg = carregar_config(conn)
     ctx = _ctx_base(request, user)
-    ctx["cfg"] = cfg
+    ctx.update(
+        {
+            "cfg": cfg,
+            "logo_master_url": logo_url(cfg.get("logo_master")),
+            "logo_cabecalho_url": logo_url(cfg.get("logo_cabecalho")),
+            "logo_rodape_url": logo_url(cfg.get("logo_rodape")),
+        }
+    )
     return render(request, "cadastros_nativos.html", ctx)
 
 
@@ -127,6 +144,29 @@ async def nativos_post(request: Request):
     form = await request.form()
     dados = {k: str(form.get(k) or "").strip() for k in _NATIVOS_KEYS}
     with connect() as conn:
+        cfg = carregar_config(conn)
+        logo_master = cfg.get("logo_master") or ""
+        logo_cab = cfg.get("logo_cabecalho") or ""
+        logo_rod = cfg.get("logo_rodape") or ""
+        up_m = form.get("logo_master")
+        up_c = form.get("logo_cabecalho")
+        up_r = form.get("logo_rodape")
+        saved = save_upload(up_m, "logo_master")
+        if saved:
+            logo_master = saved
+        saved = save_upload(up_c, "logo_cabecalho")
+        if saved:
+            logo_cab = saved
+        saved = save_upload(up_r, "logo_rodape")
+        if saved:
+            logo_rod = saved
+        dados.update(
+            {
+                "logo_master": logo_master,
+                "logo_cabecalho": logo_cab,
+                "logo_rodape": logo_rod,
+            }
+        )
         salvar_config(conn, dados)
     request.session["cad_flash_ok"] = "Valores nativos salvos com sucesso."
     return RedirectResponse("/cadastros/nativos", status_code=303)
@@ -255,6 +295,7 @@ def materias_lista(request: Request):
                 ("nome_exibicao_orc", "Nome ORC"),
                 ("custo", "Custo"),
             ],
+            "brl": brl,
         }
     )
     return render(request, "cadastros_crud_lista.html", ctx)
@@ -266,7 +307,14 @@ def materias_novo(request: Request):
     if err:
         return err
     ctx = _ctx_base(request, user)
-    ctx.update({"titulo": "Nova matéria-prima", "slug": "materias", "item": None})
+    ctx.update(
+        {
+            "titulo": "Nova matéria-prima",
+            "slug": "materias",
+            "item": None,
+            "custo_logs": [],
+        }
+    )
     return render(request, "cadastros_form_materia.html", ctx)
 
 
@@ -277,10 +325,18 @@ def materias_editar(request: Request, item_id: int):
         return err
     with connect() as conn:
         row = _obter_por_id(conn, "materias_primas", item_id)
+        logs = _log_item(conn, "materias_primas", item_id)
     if not row:
         return HTMLResponse("Registro não encontrado.", status_code=404)
     ctx = _ctx_base(request, user)
-    ctx.update({"titulo": "Editar matéria-prima", "slug": "materias", "item": dict(row)})
+    ctx.update(
+        {
+            "titulo": "Editar matéria-prima",
+            "slug": "materias",
+            "item": dict(row),
+            "custo_logs": logs,
+        }
+    )
     return render(request, "cadastros_form_materia.html", ctx)
 
 
@@ -304,7 +360,11 @@ async def materias_salvar(request: Request):
             status_code=303,
         )
     with connect() as conn:
-        salvar_materia(
+        antigo = None
+        if item_id:
+            row = _obter_por_id(conn, "materias_primas", int(item_id))
+            antigo = float(row["custo"]) if row and row["custo"] is not None else None
+        rid = salvar_materia(
             conn,
             codigo=codigo,
             nome=nome,
@@ -313,6 +373,16 @@ async def materias_salvar(request: Request):
             custo=float(custo),
             observacoes=obs,
             materia_id=int(item_id) if item_id else None,
+        )
+        registrar_custo(
+            conn,
+            tabela="materias_primas",
+            registro_id=rid,
+            valor_anterior=antigo,
+            valor_novo=float(custo),
+            codigo=codigo,
+            nome=nome,
+            usuario=user,
         )
     request.session["cad_flash_ok"] = "Matéria-prima salva."
     return RedirectResponse("/cadastros/materias", status_code=303)
@@ -364,7 +434,9 @@ def tubetes_novo(request: Request):
     if err:
         return err
     ctx = _ctx_base(request, user)
-    ctx.update({"titulo": "Novo tubete", "slug": "tubetes", "item": None})
+    ctx.update(
+        {"titulo": "Novo tubete", "slug": "tubetes", "item": None, "custo_logs": []}
+    )
     return render(request, "cadastros_form_tubete.html", ctx)
 
 
@@ -375,10 +447,18 @@ def tubetes_editar(request: Request, item_id: int):
         return err
     with connect() as conn:
         row = _obter_por_id(conn, "tubetes", item_id)
+        logs = _log_item(conn, "tubetes", item_id)
     if not row:
         return HTMLResponse("Registro não encontrado.", status_code=404)
     ctx = _ctx_base(request, user)
-    ctx.update({"titulo": "Editar tubete", "slug": "tubetes", "item": dict(row)})
+    ctx.update(
+        {
+            "titulo": "Editar tubete",
+            "slug": "tubetes",
+            "item": dict(row),
+            "custo_logs": logs,
+        }
+    )
     return render(request, "cadastros_form_tubete.html", ctx)
 
 
@@ -401,7 +481,11 @@ async def tubetes_salvar(request: Request):
             status_code=303,
         )
     with connect() as conn:
-        salvar_tubete(
+        antigo = None
+        if item_id:
+            row = _obter_por_id(conn, "tubetes", int(item_id))
+            antigo = float(row["custo"]) if row and row["custo"] is not None else None
+        rid = salvar_tubete(
             conn,
             codigo=codigo,
             nome=nome,
@@ -409,6 +493,16 @@ async def tubetes_salvar(request: Request):
             preco_compra=preco,
             custo=float(custo),
             tubete_id=int(item_id) if item_id else None,
+        )
+        registrar_custo(
+            conn,
+            tabela="tubetes",
+            registro_id=rid,
+            valor_anterior=antigo,
+            valor_novo=float(custo),
+            codigo=codigo,
+            nome=nome,
+            usuario=user,
         )
     request.session["cad_flash_ok"] = "Tubete salvo."
     return RedirectResponse("/cadastros/tubetes", status_code=303)
@@ -459,7 +553,9 @@ def caixas_novo(request: Request):
     if err:
         return err
     ctx = _ctx_base(request, user)
-    ctx.update({"titulo": "Nova caixa", "slug": "caixas", "item": None})
+    ctx.update(
+        {"titulo": "Nova caixa", "slug": "caixas", "item": None, "custo_logs": []}
+    )
     return render(request, "cadastros_form_caixa.html", ctx)
 
 
@@ -470,10 +566,18 @@ def caixas_editar(request: Request, item_id: int):
         return err
     with connect() as conn:
         row = _obter_por_id(conn, "caixas", item_id)
+        logs = _log_item(conn, "caixas", item_id)
     if not row:
         return HTMLResponse("Registro não encontrado.", status_code=404)
     ctx = _ctx_base(request, user)
-    ctx.update({"titulo": "Editar caixa", "slug": "caixas", "item": dict(row)})
+    ctx.update(
+        {
+            "titulo": "Editar caixa",
+            "slug": "caixas",
+            "item": dict(row),
+            "custo_logs": logs,
+        }
+    )
     return render(request, "cadastros_form_caixa.html", ctx)
 
 
@@ -494,12 +598,26 @@ async def caixas_salvar(request: Request):
             status_code=303,
         )
     with connect() as conn:
-        salvar_caixa(
+        antigo = None
+        if item_id:
+            row = _obter_por_id(conn, "caixas", int(item_id))
+            antigo = float(row["custo"]) if row and row["custo"] is not None else None
+        rid = salvar_caixa(
             conn,
             codigo=codigo,
             nome=nome,
             custo=float(custo),
             caixa_id=int(item_id) if item_id else None,
+        )
+        registrar_custo(
+            conn,
+            tabela="caixas",
+            registro_id=rid,
+            valor_anterior=antigo,
+            valor_novo=float(custo),
+            codigo=codigo,
+            nome=nome,
+            usuario=user,
         )
     request.session["cad_flash_ok"] = "Caixa salva."
     return RedirectResponse("/cadastros/caixas", status_code=303)
@@ -652,7 +770,14 @@ def suprimentos_novo(request: Request):
     if err:
         return err
     ctx = _ctx_base(request, user)
-    ctx.update({"titulo": "Novo suprimento", "slug": "suprimentos", "item": None})
+    ctx.update(
+        {
+            "titulo": "Novo suprimento",
+            "slug": "suprimentos",
+            "item": None,
+            "custo_logs": [],
+        }
+    )
     return render(request, "cadastros_form_suprimento.html", ctx)
 
 
@@ -663,11 +788,17 @@ def suprimentos_editar(request: Request, item_id: int):
         return err
     with connect() as conn:
         row = obter_suprimento(conn, item_id)
+        logs = _log_item(conn, "suprimentos", item_id)
     if not row:
         return HTMLResponse("Registro não encontrado.", status_code=404)
     ctx = _ctx_base(request, user)
     ctx.update(
-        {"titulo": "Editar suprimento", "slug": "suprimentos", "item": dict(row)}
+        {
+            "titulo": "Editar suprimento",
+            "slug": "suprimentos",
+            "item": dict(row),
+            "custo_logs": logs,
+        }
     )
     return render(request, "cadastros_form_suprimento.html", ctx)
 
@@ -695,7 +826,11 @@ async def suprimentos_salvar(request: Request):
             status_code=303,
         )
     with connect() as conn:
-        salvar_suprimento(
+        antigo = None
+        if item_id:
+            row = obter_suprimento(conn, int(item_id))
+            antigo = float(row["custo"]) if row and row["custo"] is not None else None
+        rid = salvar_suprimento(
             conn,
             codigo=codigo,
             marca=marca,
@@ -705,6 +840,16 @@ async def suprimentos_salvar(request: Request):
             custo=float(custo),
             ativo=ativo,
             suprimento_id=int(item_id) if item_id else None,
+        )
+        registrar_custo(
+            conn,
+            tabela="suprimentos",
+            registro_id=rid,
+            valor_anterior=antigo,
+            valor_novo=float(custo),
+            codigo=codigo,
+            nome=nome_exib or descricao,
+            usuario=user,
         )
     request.session["cad_flash_ok"] = "Suprimento salvo."
     return RedirectResponse("/cadastros/suprimentos", status_code=303)

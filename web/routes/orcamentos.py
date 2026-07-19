@@ -35,6 +35,7 @@ from src.services.orcamentos import (
     STATUS_RASCUNHO,
     atualizar_status_orcamento,
     buscar_orcamentos,
+    clonar_para_novo,
     label_status,
     obter_orcamento,
     orcamento_para_proposta,
@@ -46,6 +47,7 @@ from src.services.usuarios import usuario_tem_permissao
 from src.ui.formatters import brl, pct
 from web.deps import get_current_user
 from web import proposta_session as ps
+from web.logos import logo_url
 from web.templating import render
 
 router = APIRouter(prefix="/orcamentos")
@@ -58,6 +60,16 @@ def _require_user(request: Request, perm: str):
     if not usuario_tem_permissao(user, perm):
         return None, HTMLResponse("Sem permissão.", status_code=403)
     return user, None
+
+
+def _block_readonly(request: Request):
+    if ps.is_readonly(request):
+        ps.flash_err(
+            request,
+            "Orçamento em modo consulta. Use Clonar para editar uma cópia.",
+        )
+        return _redirect_novo()
+    return None
 
 
 def _garantir_numero(conn, proposta: dict) -> None:
@@ -174,6 +186,9 @@ def _ctx_novo(request: Request, conn, user, *, form_vals: dict | None = None) ->
             "imposto_suprimentos": 0.91,
             "aliquota_difal": 0.073,
         },
+        "readonly": ps.is_readonly(request),
+        "logo_cabecalho_url": logo_url(cfg.get("logo_cabecalho")),
+        "logo_rodape_url": logo_url(cfg.get("logo_rodape")),
     }
 
 
@@ -200,10 +215,12 @@ def _montar_linhas_memoria(proposta: dict, rascunho: dict | None) -> list[dict]:
     return linhas
 
 
-def _redirect_novo(query: str = "") -> RedirectResponse:
+def _redirect_novo(query: str = "", *, anchor: str = "") -> RedirectResponse:
     url = "/orcamentos/novo"
     if query:
         url = f"{url}?{query}"
+    if anchor:
+        url = f"{url}#{anchor}"
     return RedirectResponse(url, status_code=303)
 
 
@@ -244,8 +261,10 @@ def lista(
             "termo": termo,
             "cliente": cliente,
             "status": status,
+            "brl": brl,
             "pode_aprovar": usuario_tem_permissao(user, "orcamento.aprovar"),
             "pode_pdf": usuario_tem_permissao(user, "orcamento.pdf"),
+            "pode_criar": usuario_tem_permissao(user, "orcamento.criar"),
         },
     )
 
@@ -287,20 +306,30 @@ def set_modo_form(request: Request, modo: str = Form(...)):
     user, err = _require_user(request, "orcamento.criar")
     if err:
         return err
+    blocked = _block_readonly(request)
+    if blocked and modo != "fechar":
+        return blocked
     if modo in ("etiqueta", "suprimentos"):
         ps.set_modo(request, modo)
-        # formulário de inserção sempre limpo ao abrir (só nativos)
         request.session.pop("web_form_vals", None)
     elif modo == "fechar":
         ps.set_modo(request, None)
-    return _redirect_novo()
+    return _redirect_novo(anchor="form-item" if modo in ("etiqueta", "suprimentos") else "")
 
 
 @router.post("/novo/dialog")
 def set_dialog(request: Request, dialog: str = Form(...)):
-    user, err = _require_user(request, "orcamento.criar")
-    if err:
-        return err
+    user = get_current_user(request)
+    if not user:
+        return RedirectResponse("/login", status_code=303)
+    if dialog == "memoria" or dialog == "fechar":
+        if not usuario_tem_permissao(user, "orcamento.ver"):
+            return HTMLResponse("Sem permissão.", status_code=403)
+    else:
+        if not usuario_tem_permissao(user, "orcamento.criar"):
+            return HTMLResponse("Sem permissão.", status_code=403)
+        if ps.is_readonly(request):
+            return _block_readonly(request)
     if dialog in ("cliente", "cliente_avulso", "condicoes", "memoria", "fechar"):
         if dialog == "fechar":
             ps.set_dialog(request, None)
@@ -310,7 +339,7 @@ def set_dialog(request: Request, dialog: str = Form(...)):
             ps.set_dialog(request, "memoria")
         else:
             ps.set_dialog(request, dialog)
-    return _redirect_novo()
+    return _redirect_novo(anchor="modal" if dialog != "fechar" else "")
 
 
 @router.get("/novo/clientes", response_class=HTMLResponse)
@@ -334,6 +363,9 @@ def selecionar_cliente(request: Request, cliente_id: int = Form(...)):
     user, err = _require_user(request, "orcamento.criar")
     if err:
         return err
+    blocked = _block_readonly(request)
+    if blocked:
+        return blocked
     with connect() as conn:
         proposta = ps.get_proposta(request, conn)
         cli = obter_cliente(conn, cliente_id)
@@ -357,6 +389,9 @@ def cliente_avulso(
     user, err = _require_user(request, "orcamento.criar")
     if err:
         return err
+    blocked = _block_readonly(request)
+    if blocked:
+        return blocked
     nome = (nome or "").strip()
     if not nome:
         ps.flash_err(request, "Informe o nome do cliente avulso.")
@@ -382,6 +417,9 @@ def limpar_cliente(request: Request):
     user, err = _require_user(request, "orcamento.criar")
     if err:
         return err
+    blocked = _block_readonly(request)
+    if blocked:
+        return blocked
     with connect() as conn:
         proposta = ps.get_proposta(request, conn)
         proposta["cliente"] = None
@@ -410,6 +448,9 @@ def salvar_condicoes(
     user, err = _require_user(request, "orcamento.criar")
     if err:
         return err
+    blocked = _block_readonly(request)
+    if blocked:
+        return blocked
     with connect() as conn:
         proposta = ps.get_proposta(request, conn)
         proposta.update(
@@ -440,9 +481,12 @@ async def inserir_etiqueta(request: Request):
     user, err = _require_user(request, "orcamento.criar")
     if err:
         return err
-
     form = await request.form()
     acao = str(form.get("acao") or "inserir")
+    if acao == "inserir":
+        blocked = _block_readonly(request)
+        if blocked:
+            return blocked
     tipo_faca = str(form.get("tipo_faca") or "")
     materia_nome = str(form.get("materia_nome") or "")
     tubete_nome = str(form.get("tubete_nome") or "")
@@ -613,9 +657,12 @@ async def inserir_suprimento(request: Request):
     user, err = _require_user(request, "orcamento.criar")
     if err:
         return err
-
     form = await request.form()
     acao = str(form.get("acao") or "inserir")
+    if acao == "inserir":
+        blocked = _block_readonly(request)
+        if blocked:
+            return blocked
     descricao_in = str(form.get("descricao") or "").strip()
     unidade = str(form.get("unidade") or "UN")
     difal_sel = str(form.get("difal") or "").upper()
@@ -744,6 +791,9 @@ def remover_item(request: Request, indice: int = Form(...)):
     user, err = _require_user(request, "orcamento.criar")
     if err:
         return err
+    blocked = _block_readonly(request)
+    if blocked:
+        return blocked
     with connect() as conn:
         proposta = ps.get_proposta(request, conn)
         itens = proposta.get("itens") or []
@@ -766,6 +816,9 @@ def salvar_formacao(request: Request):
     user, err = _require_user(request, "orcamento.criar")
     if err:
         return err
+    blocked = _block_readonly(request)
+    if blocked:
+        return blocked
     with connect() as conn:
         proposta = ps.get_proposta(request, conn)
         if not proposta.get("cliente"):
@@ -790,7 +843,7 @@ def pdf_da_sessao(request: Request):
     user, err = _require_user(request, "orcamento.pdf")
     if err:
         return err
-    if not ps.proposta_esta_salva(request):
+    if not ps.proposta_esta_salva(request) and not ps.is_readonly(request):
         ps.flash_err(request, "Salve o orçamento para habilitar o PDF.")
         return _redirect_novo()
 
@@ -880,15 +933,133 @@ def continuar_rascunho(request: Request, orcamento_id: int = Form(...)):
     if err:
         return err
     with connect() as conn:
-        proposta = ps.carregar_proposta_do_banco(request, conn, orcamento_id)
-        if not proposta:
+        orc = obter_orcamento(conn, orcamento_id)
+        if not orc:
             ps.flash_err(request, "Orçamento não encontrado.")
             return RedirectResponse("/orcamentos", status_code=303)
+        status = (orc.get("status") or "").lower()
+        if status not in ("rascunho", ""):
+            # gerado/aprovado: só consulta
+            ps.carregar_proposta_do_banco(
+                request, conn, orcamento_id, readonly=True
+            )
+            ps.flash_ok(
+                request,
+                f"Orçamento {orc.get('numero') or orcamento_id} aberto em consulta "
+                f"(status: {label_status(status)}). Use Clonar para editar.",
+            )
+            return _redirect_novo()
+        ps.carregar_proposta_do_banco(request, conn, orcamento_id, readonly=False)
         ps.flash_ok(
             request,
-            f"Orçamento {proposta.get('numero') or orcamento_id} carregado para edição.",
+            f"Rascunho {orc.get('numero') or orcamento_id} carregado para edição.",
         )
     return _redirect_novo()
+
+
+@router.post("/{orcamento_id}/consultar")
+def consultar(request: Request, orcamento_id: int):
+    user, err = _require_user(request, "orcamento.ver")
+    if err:
+        return err
+    with connect() as conn:
+        proposta = ps.carregar_proposta_do_banco(
+            request, conn, orcamento_id, readonly=True
+        )
+        if not proposta:
+            return HTMLResponse("Orçamento não encontrado.", status_code=404)
+        ps.flash_ok(
+            request,
+            f"Orçamento {proposta.get('numero') or orcamento_id} aberto em modo consulta "
+            f"(status: {label_status(proposta.get('status'))}).",
+        )
+    return _redirect_novo()
+
+
+@router.post("/{orcamento_id}/clonar")
+def clonar(request: Request, orcamento_id: int):
+    user, err = _require_user(request, "orcamento.criar")
+    if err:
+        return err
+    with connect() as conn:
+        orc = obter_orcamento(conn, orcamento_id)
+        if not orc:
+            return HTMLResponse("Orçamento não encontrado.", status_code=404)
+        proposta = clonar_para_novo(orc)
+        # Persiste como rascunho novo para caber itens fora do cookie
+        ps.set_readonly(request, False)
+        salvar_orcamento(conn, proposta, status=STATUS_RASCUNHO)
+        request.session[ps.SESSION_PROPOSTA_ID] = proposta["id"]
+        request.session.pop(ps.SESSION_DRAFT, None)
+        ps.marcar_suja(request)
+        ps.set_modo(request, None)
+        ps.flash_ok(
+            request,
+            f"Clone criado a partir de {orc.get('numero') or orcamento_id}. "
+            "Edite e salve como novo orçamento.",
+        )
+    return _redirect_novo()
+
+
+@router.get("/{orcamento_id}/memoria", response_class=HTMLResponse)
+def memoria_orcamento(request: Request, orcamento_id: int):
+    user, err = _require_user(request, "orcamento.ver")
+    if err:
+        return err
+    with connect() as conn:
+        orc = obter_orcamento(conn, orcamento_id)
+        if not orc:
+            return HTMLResponse("Orçamento não encontrado.", status_code=404)
+        prop = orcamento_para_proposta(orc)
+        linhas = []
+        for i, it in enumerate(prop.get("itens") or [], start=1):
+            linhas.append(
+                {
+                    "titulo": f"Item {i:02d} — {it.get('descricao') or ''}",
+                    "params": it.get("parametros") or {},
+                    "calc": it.get("calculo") or {},
+                }
+            )
+    return render(
+        request,
+        "orcamento_memoria.html",
+        {
+            "user": user,
+            "orc": orc,
+            "status_label": label_status(orc.get("status")),
+            "memoria_linhas": linhas,
+            "brl": brl,
+            "pode_pdf": usuario_tem_permissao(user, "orcamento.pdf"),
+        },
+    )
+
+
+@router.get("/{orcamento_id}/memoria/pdf")
+def memoria_pdf_orcamento(request: Request, orcamento_id: int):
+    user, err = _require_user(request, "orcamento.pdf")
+    if err:
+        return err
+    with connect() as conn:
+        orc = obter_orcamento(conn, orcamento_id)
+        cfg = carregar_config(conn)
+        if not orc:
+            return HTMLResponse("Orçamento não encontrado.", status_code=404)
+        prop = orcamento_para_proposta(orc)
+        pdf_bytes = gerar_pdf_memoria(
+            itens=prop.get("itens") or [],
+            rascunho=None,
+            orcamento={
+                "numero": prop.get("numero"),
+                "cliente_nome": (prop.get("cliente") or {}).get("nome"),
+            },
+            empresa=cfg,
+        )
+    nome = f"memoria_{prop.get('numero') or orcamento_id}.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{nome}"'},
+    )
 
 
 @router.get("/{orcamento_id}", response_class=HTMLResponse)
@@ -902,6 +1073,7 @@ def detalhe(request: Request, orcamento_id: int):
     if not orc:
         return HTMLResponse("Orçamento não encontrado.", status_code=404)
 
+    status = (orc.get("status") or "").lower()
     return render(
         request,
         "orcamento_detalhe.html",
@@ -909,12 +1081,15 @@ def detalhe(request: Request, orcamento_id: int):
             "user": user,
             "orc": orc,
             "status_label": label_status(orc.get("status")),
+            "brl": brl,
             "pode_aprovar": usuario_tem_permissao(user, "orcamento.aprovar")
-            and (orc.get("status") or "").lower() in ("gerado", "finalizado"),
+            and status in ("gerado", "finalizado"),
             "pode_pdf": usuario_tem_permissao(user, "orcamento.pdf"),
-            "pode_editar": usuario_tem_permissao(user, "orcamento.criar")
-            and (orc.get("status") or "").lower()
-            in ("rascunho", "gerado", "finalizado"),
+            "pode_consultar": True,
+            "pode_clonar": usuario_tem_permissao(user, "orcamento.criar"),
+            "pode_editar_rascunho": usuario_tem_permissao(user, "orcamento.criar")
+            and status == "rascunho",
+            "pode_memoria": True,
         },
     )
 

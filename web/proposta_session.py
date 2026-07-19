@@ -28,6 +28,7 @@ SESSION_FLASH_OK = "web_flash_ok"
 SESSION_FLASH_ERR = "web_flash_err"
 SESSION_DIALOG = "web_dialog"
 SESSION_MEMORIA = "web_memoria"
+SESSION_READONLY = "web_proposta_readonly"
 
 
 def nova_proposta(cfg: dict[str, str]) -> dict:
@@ -98,11 +99,12 @@ def get_proposta(request: Request, conn) -> dict:
 
 def persistir(request: Request, conn, proposta: dict, *, status: str | None = None) -> dict:
     """Grava no banco e passa a referenciar só pelo id na sessão."""
+    if is_readonly(request):
+        raise PermissionError("Orçamento em modo consulta — edição bloqueada.")
     st = status
     if st is None:
         st = proposta.get("status") or STATUS_RASCUNHO
         if st == STATUS_GERADO and not request.session.get(SESSION_SALVA):
-            # alterações após "gerado" voltam a rascunho até Salvar de novo
             if proposta.get("id"):
                 atual = obter_orcamento(conn, int(proposta["id"]))
                 if atual and (atual.get("status") or "").lower() in (
@@ -136,10 +138,25 @@ def reiniciar_proposta(request: Request, conn) -> dict:
     request.session[SESSION_SALVA] = False
     request.session[SESSION_DIALOG] = None
     request.session[SESSION_MEMORIA] = None
+    request.session[SESSION_READONLY] = False
     return proposta
 
 
-def carregar_proposta_do_banco(request: Request, conn, orcamento_id: int) -> dict | None:
+def set_readonly(request: Request, readonly: bool) -> None:
+    request.session[SESSION_READONLY] = bool(readonly)
+
+
+def is_readonly(request: Request) -> bool:
+    return bool(request.session.get(SESSION_READONLY))
+
+
+def carregar_proposta_do_banco(
+    request: Request,
+    conn,
+    orcamento_id: int,
+    *,
+    readonly: bool = False,
+) -> dict | None:
     orc = obter_orcamento(conn, orcamento_id)
     if not orc:
         return None
@@ -149,6 +166,7 @@ def carregar_proposta_do_banco(request: Request, conn, orcamento_id: int) -> dic
     status = (proposta.get("status") or "").lower()
     request.session[SESSION_SALVA] = status in (STATUS_GERADO, "finalizado", "aprovado")
     request.session[SESSION_MODO] = None
+    request.session[SESSION_READONLY] = bool(readonly)
     return proposta
 
 
@@ -200,8 +218,6 @@ def get_memoria(request: Request) -> dict | None:
 
 
 def set_memoria(request: Request, data: dict | None) -> None:
-    # memória fica só para o rascunho atual do form — pode ser grande;
-    # se falhar cookie, o usuário ainda vê itens do banco
     request.session[SESSION_MEMORIA] = data
 
 

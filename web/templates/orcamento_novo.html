@@ -2,25 +2,30 @@
 {% block title %}Novo Orçamento — {{ app_name }}{% endblock %}
 {% block body %}
 <div class="topbar">
-  <h1 class="brand">Novo Orçamento</h1>
+  <h1 class="brand">{% if readonly %}Consulta de Orçamento{% else %}Novo Orçamento{% endif %}</h1>
   <div class="userbox">
-    <a href="/menu">← Menu</a>
+    <a class="btn btn-ghost" href="/menu">← Menu</a>
     {% if proposta.numero %}<div class="muted">{{ proposta.numero }} · {{ status_label }}</div>{% endif %}
   </div>
 </div>
 
 {% if flash_ok %}<div class="ok">{{ flash_ok }}</div>{% endif %}
 {% if flash_err %}<div class="error">{{ flash_err }}</div>{% endif %}
+{% if readonly %}
+<div class="info-banner">Modo consulta: alterações desabilitadas. Use Histórico → Clonar para editar uma cópia.</div>
+{% endif %}
 
 <div class="orc-grid">
   <div class="orc-col">
-    <div class="card">
+    <div class="card surface">
       <h3>Selecionar cliente</h3>
+      {% if not readonly %}
       <div class="btn-row">
         <form method="post" action="/orcamentos/novo/dialog"><input type="hidden" name="dialog" value="cliente" /><button class="btn btn-primary" type="submit">Selecionar cliente</button></form>
-        <form method="post" action="/orcamentos/novo/dialog"><input type="hidden" name="dialog" value="cliente_avulso" /><button class="btn" type="submit">Cliente avulso</button></form>
-        <form method="post" action="/orcamentos/novo/cliente/limpar"><button class="btn" type="submit">Limpar cliente</button></form>
+        <form method="post" action="/orcamentos/novo/dialog"><input type="hidden" name="dialog" value="cliente_avulso" /><button class="btn btn-primary" type="submit">Cliente avulso</button></form>
+        <form method="post" action="/orcamentos/novo/cliente/limpar"><button class="btn btn-primary" type="submit">Limpar cliente</button></form>
       </div>
+      {% endif %}
       {% if proposta.cliente %}
       <p class="ok" style="margin-top:0.8rem">{{ proposta.cliente.nome }} | {{ proposta.cliente.cnpj_cpf or '-' }}</p>
       {% else %}
@@ -28,13 +33,15 @@
       {% endif %}
     </div>
 
-    <div class="card">
+    <div class="card surface">
       <h3>Formação de orçamento</h3>
+      {% if not readonly %}
       <div class="btn-row">
-        <form method="post" action="/orcamentos/novo/modo"><input type="hidden" name="modo" value="etiqueta" /><button class="btn {% if modo=='etiqueta' %}btn-primary{% endif %}" type="submit">Inserir nova etiqueta</button></form>
-        <form method="post" action="/orcamentos/novo/modo"><input type="hidden" name="modo" value="suprimentos" /><button class="btn {% if modo=='suprimentos' %}btn-primary{% endif %}" type="submit">Inserir novo suprimento</button></form>
-        <form method="post" action="/orcamentos/novo/dialog"><input type="hidden" name="dialog" value="condicoes" /><button class="btn" type="submit">Condições gerais</button></form>
+        <form method="post" action="/orcamentos/novo/modo"><input type="hidden" name="modo" value="etiqueta" /><button class="btn btn-primary {% if modo=='etiqueta' %}is-active{% endif %}" type="submit">Inserir nova etiqueta</button></form>
+        <form method="post" action="/orcamentos/novo/modo"><input type="hidden" name="modo" value="suprimentos" /><button class="btn btn-primary {% if modo=='suprimentos' %}is-active{% endif %}" type="submit">Inserir novo suprimento</button></form>
+        <form method="post" action="/orcamentos/novo/dialog"><input type="hidden" name="dialog" value="condicoes" /><button class="btn btn-primary" type="submit">Condições gerais</button></form>
       </div>
+      {% endif %}
 
       <div class="total-bar">Valor total dos itens: {{ brl(valor_total) }}</div>
       <div class="metrics">
@@ -44,19 +51,24 @@
       </div>
 
       <div class="btn-row">
-        <form method="post" action="/orcamentos/novo/dialog"><input type="hidden" name="dialog" value="memoria" /><button class="btn" type="submit">Memória de cálculo</button></form>
+        <form method="post" action="/orcamentos/novo/dialog"><input type="hidden" name="dialog" value="memoria" /><button class="btn btn-primary" type="submit">Memória de cálculo</button></form>
+        {% if not readonly %}
         <form method="post" action="/orcamentos/novo/salvar"><button class="btn btn-primary" type="submit">Salvar orçamento</button></form>
-        {% if proposta_salva and proposta.cliente and proposta.itens %}
-        <a class="btn btn-primary" href="/orcamentos/novo/pdf">Gerar PDF da proposta</a>
-        {% else %}
-        <button class="btn" type="button" disabled title="Salve o orçamento para habilitar">Gerar PDF da proposta</button>
+        {% endif %}
+        {% if (readonly or proposta_salva) and proposta.cliente and proposta.itens %}
+        <a class="btn btn-primary" href="/orcamentos/novo/pdf">Imprimir PDF</a>
+        {% elif not readonly %}
+        <button class="btn" type="button" disabled title="Salve o orçamento para habilitar">Imprimir PDF</button>
+        {% endif %}
+        {% if readonly and proposta.id and status_label == 'Orçamento gerado' and has_perm(user, 'orcamento.aprovar') %}
+        <form method="post" action="/orcamentos/{{ proposta.id }}/aprovar"><button class="btn btn-primary" type="submit">Aprovar</button></form>
         {% endif %}
       </div>
-      {% if not proposta_salva %}<p class="muted">Salve o orçamento para habilitar o PDF.</p>{% endif %}
+      {% if not readonly and not proposta_salva %}<p class="muted">Salve o orçamento para habilitar o PDF.</p>{% endif %}
     </div>
 
-    {% if modo %}
-    <div class="card">
+    {% if modo and not readonly %}
+    <div class="card surface" id="form-item">
       <form method="post" action="/orcamentos/novo/modo" style="margin-bottom:0.8rem">
         <input type="hidden" name="modo" value="fechar" />
         <button class="btn" type="submit">↑ Recuar formulário de inserção</button>
@@ -215,10 +227,10 @@
   </div>
 
   <div class="orc-col">
-    <div class="card preview-card">
+    <div class="card surface preview-card">
       <h3>Prévia da proposta</h3>
-      {% if cfg.logo_cabecalho %}
-      <img class="logo-preview" src="/static/img/logo_cabecalho.png" alt="Logo" onerror="this.style.display='none'" />
+      {% if logo_cabecalho_url %}
+      <img class="logo-preview" src="{{ logo_cabecalho_url }}" alt="Logo cabeçalho" />
       {% endif %}
       <div class="preview-head">
         <div>
@@ -257,11 +269,13 @@
           </tbody>
         </table>
       </div>
+      {% if not readonly %}
       <form method="post" action="/orcamentos/novo/item/remover" class="btn-row">
         <label style="margin:0">Remover item (nº)</label>
         <input name="indice" type="number" min="1" max="{{ proposta.itens|length }}" value="1" style="max-width:90px" />
-        <button class="btn" type="submit">Remover item</button>
+        <button class="btn btn-primary" type="submit">Remover item</button>
       </form>
+      {% endif %}
       {% else %}
       <p class="muted">Nenhum item na proposta ainda.</p>
       {% endif %}
@@ -287,16 +301,21 @@
           {{ proposta.orcamentista_telefone or '-' }}<br/>
           {{ proposta.orcamentista_email or '-' }}
         </div>
+        {% if logo_rodape_url %}
+        <img class="logo-rodape" src="{{ logo_rodape_url }}" alt="Logo rodapé" />
+        {% endif %}
       </div>
+      {% if not readonly %}
       <form method="post" action="/orcamentos/novo/limpar" class="btn-row">
-        <button class="btn" type="submit">Limpar orçamento (começar do zero)</button>
+        <button class="btn btn-primary" type="submit">Limpar orçamento (começar do zero)</button>
       </form>
+      {% endif %}
     </div>
   </div>
 </div>
 
 {% if dialog == 'cliente' %}
-<div class="modal-backdrop">
+<div class="modal-backdrop" id="modal">
   <div class="modal card">
     <div class="topbar" style="margin-bottom:0.5rem">
       <h3 style="margin:0">Selecionar cliente</h3>

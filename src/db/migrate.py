@@ -14,6 +14,7 @@ from pathlib import Path
 from .database import DB_PATH, ROOT_DIR, connect, init_db
 from .defaults_config import DEFAULT_CONFIG, ensure_config_defaults
 from .import_banco_rbt import import_suprimentos
+from src.services.custo_log import ensure_custo_log_table
 from src.services.usuarios import ensure_auth_seed
 
 
@@ -95,6 +96,9 @@ def migrate(db_path=DB_PATH) -> None:
             conn.executescript(auth_sql.read_text(encoding="utf-8"))
             ensure_auth_seed(conn)
             print("+ auth: tabelas e seed de usuários/papéis")
+
+        ensure_custo_log_table(conn)
+        print("+ custo_alteracoes_log")
 
         # Suprimentos: importa pré-cadastro se a tabela estiver vazia
         n_sup = conn.execute("SELECT COUNT(*) c FROM suprimentos").fetchone()["c"]
