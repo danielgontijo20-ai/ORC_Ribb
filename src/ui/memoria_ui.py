@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import html
 from typing import Any
 
-import pandas as pd
 import streamlit as st
 
 from src.services.calculos_orcamento import ResultadoEtiqueta, ResultadoSuprimentos
@@ -85,12 +85,37 @@ def _fmt_valor(chave: str, valor: Any) -> str:
     return str(valor)
 
 
-def _dict_para_tabela(dados: dict, labels: dict[str, str]) -> pd.DataFrame:
+def _dict_para_linhas(dados: dict, labels: dict[str, str]) -> list[tuple[str, str]]:
     linhas = []
     for k, v in (dados or {}).items():
         label = labels.get(k, k.replace("_", " ").capitalize())
-        linhas.append({"Campo": label, "Valor": _fmt_valor(k, v)})
-    return pd.DataFrame(linhas)
+        linhas.append((label, _fmt_valor(k, v)))
+    return linhas
+
+
+def _tabela_html(linhas: list[tuple[str, str]], *, caption: str) -> None:
+    """Tabela HTML com contraste alto (zebra + borda forte)."""
+    if not linhas:
+        return
+    rows_html = []
+    for i, (campo, valor) in enumerate(linhas):
+        zebra = "mem-row-even" if i % 2 == 0 else "mem-row-odd"
+        rows_html.append(
+            f'<tr class="{zebra}"><td class="mem-campo">{html.escape(str(campo))}</td>'
+            f'<td class="mem-valor">{html.escape(str(valor))}</td></tr>'
+        )
+    st.markdown(
+        f"""
+        <div class="mem-table-wrap">
+          <div class="mem-table-caption">{html.escape(caption)}</div>
+          <table class="mem-table">
+            <thead><tr><th>Campo</th><th>Valor</th></tr></thead>
+            <tbody>{''.join(rows_html)}</tbody>
+          </table>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _resultado_para_dict(resultado) -> dict:
@@ -101,89 +126,8 @@ def _resultado_para_dict(resultado) -> dict:
     return {}
 
 
-def render_tabela_memoria(
-    *,
-    titulo: str,
-    params: dict | None,
-    calculo: dict | None,
-    key_prefix: str,
-) -> None:
-    """Uma memória: título + tabela de parâmetros + tabela de cálculo."""
-    st.markdown(f"##### {titulo}")
-    if params:
-        st.caption("Parâmetros de entrada")
-        st.dataframe(
-            _dict_para_tabela(params, _LABELS_PARAM),
-            use_container_width=True,
-            hide_index=True,
-            key=f"{key_prefix}_params",
-        )
-    if calculo:
-        st.caption("Resultado do cálculo")
-        st.dataframe(
-            _dict_para_tabela(calculo, _LABELS_CALC),
-            use_container_width=True,
-            hide_index=True,
-            key=f"{key_prefix}_calc",
-        )
-    if not params and not calculo:
-        st.info("Sem dados de memória para este item.")
-    st.divider()
-
-
-def render_memorias_itens(itens: list[dict], *, key_prefix: str = "mem") -> None:
-    """Empilha uma tabela de memória por item da proposta."""
-    if not itens:
-        st.info("Nenhum item na proposta — memória de cálculo vazia.")
-        return
-    for i, it in enumerate(itens):
-        tipo = (it.get("tipo_item") or "item").capitalize()
-        desc = it.get("descricao") or "(sem descrição)"
-        titulo = f"Item {i + 1:02d} — {tipo}: {desc}"
-        params = it.get("parametros") or {}
-        # normaliza chaves de params vindas do formulário
-        if not any(k in params for k in ("Dimensão", "Descrição", "Matéria-prima")):
-            # params internos (faca, materia...) — ok, labels cobrem
-            pass
-        calculo = it.get("calculo") or {}
-        render_tabela_memoria(
-            titulo=titulo,
-            params=params,
-            calculo=calculo if isinstance(calculo, dict) else {},
-            key_prefix=f"{key_prefix}_{i}",
-        )
-
-
-def render_memoria_completa(
-    *,
-    itens: list[dict],
-    rascunho: dict | None = None,
-) -> None:
-    """
-    Exibe memória completa: cálculo atual (se houver) + um bloco por item inserido.
-    """
-    if rascunho:
-        tipo = (rascunho.get("tipo") or "item").capitalize()
-        params = rascunho.get("params") or {}
-        desc = (
-            params.get("Descrição")
-            or params.get("Matéria-prima")
-            or params.get("Dimensão")
-            or "em elaboração"
-        )
-        calculo = _resultado_para_dict(rascunho.get("resultado"))
-        render_tabela_memoria(
-            titulo=f"Cálculo atual (não inserido) — {tipo}: {desc}",
-            params=params,
-            calculo=calculo,
-            key_prefix="mem_draft",
-        )
-
-    if itens:
-        st.markdown("#### Itens incluídos na proposta")
-        render_memorias_itens(itens, key_prefix="mem_item")
-    elif not rascunho:
-        st.warning("Sem memória de cálculo.")
+def lucro_total_itens(itens: list[dict]) -> float:
+    return sum(float(it.get("lucro_total") or 0) for it in (itens or []))
 
 
 def media_lucro_pct_proporcional(itens: list[dict]) -> float:
@@ -212,3 +156,115 @@ def media_lucro_pct_proporcional(itens: list[dict]) -> float:
     if soma_peso <= 0:
         return 0.0
     return soma_pond / soma_peso
+
+
+def _resumo_topo(itens: list[dict], rascunho: dict | None = None) -> None:
+    """Lucro total e média de margens no topo da memória."""
+    lucro = lucro_total_itens(itens)
+    media = media_lucro_pct_proporcional(itens)
+
+    # Inclui rascunho (cálculo atual) se ainda não inserido
+    if rascunho and rascunho.get("resultado") is not None:
+        calc = _resultado_para_dict(rascunho.get("resultado"))
+        lucro_r = float(calc.get("lucro_total") or 0)
+        valor_r = float(calc.get("valor_venda_total") or 0)
+        params = rascunho.get("params") or {}
+        if params.get("Lucro") is not None:
+            try:
+                pct_r = float(params["Lucro"]) * 100.0
+            except (TypeError, ValueError):
+                pct_r = (lucro_r / valor_r * 100.0) if valor_r else 0.0
+        elif params.get("lucro") is not None:
+            try:
+                pct_r = float(params["lucro"]) * 100.0
+            except (TypeError, ValueError):
+                pct_r = (lucro_r / valor_r * 100.0) if valor_r else 0.0
+        else:
+            pct_r = (lucro_r / valor_r * 100.0) if valor_r else 0.0
+
+        # média combinada: itens + rascunho
+        valor_itens = sum(float(it.get("valor_venda_total") or 0) for it in (itens or []))
+        lucro = lucro + lucro_r
+        peso = valor_itens + valor_r
+        if peso > 0:
+            media = ((media * valor_itens) + (pct_r * valor_r)) / peso if valor_itens else pct_r
+
+    m1, m2 = st.columns(2)
+    m1.metric("Lucro total", brl(lucro))
+    m2.metric("Média de margens", f"{media:.2f}%".replace(".", ","))
+    st.divider()
+
+
+def render_tabela_memoria(
+    *,
+    titulo: str,
+    params: dict | None,
+    calculo: dict | None,
+    key_prefix: str,
+) -> None:
+    """Uma memória: título + tabela de parâmetros + tabela de cálculo."""
+    del key_prefix  # HTML tables não precisam de key Streamlit
+    st.markdown(
+        f'<div class="mem-item-title">{html.escape(titulo)}</div>',
+        unsafe_allow_html=True,
+    )
+    if params:
+        _tabela_html(_dict_para_linhas(params, _LABELS_PARAM), caption="Parâmetros de entrada")
+    if calculo:
+        _tabela_html(_dict_para_linhas(calculo, _LABELS_CALC), caption="Resultado do cálculo")
+    if not params and not calculo:
+        st.info("Sem dados de memória para este item.")
+    st.markdown('<div class="mem-sep"></div>', unsafe_allow_html=True)
+
+
+def render_memorias_itens(itens: list[dict], *, key_prefix: str = "mem") -> None:
+    """Empilha uma tabela de memória por item da proposta."""
+    if not itens:
+        st.info("Nenhum item na proposta — memória de cálculo vazia.")
+        return
+    for i, it in enumerate(itens):
+        tipo = (it.get("tipo_item") or "item").capitalize()
+        desc = it.get("descricao") or "(sem descrição)"
+        titulo = f"Item {i + 1:02d} — {tipo}: {desc}"
+        params = it.get("parametros") or {}
+        calculo = it.get("calculo") or {}
+        render_tabela_memoria(
+            titulo=titulo,
+            params=params,
+            calculo=calculo if isinstance(calculo, dict) else {},
+            key_prefix=f"{key_prefix}_{i}",
+        )
+
+
+def render_memoria_completa(
+    *,
+    itens: list[dict],
+    rascunho: dict | None = None,
+) -> None:
+    """
+    Exibe memória completa: resumo no topo + cálculo atual (se houver) + itens.
+    """
+    _resumo_topo(itens or [], rascunho)
+
+    if rascunho:
+        tipo = (rascunho.get("tipo") or "item").capitalize()
+        params = rascunho.get("params") or {}
+        desc = (
+            params.get("Descrição")
+            or params.get("Matéria-prima")
+            or params.get("Dimensão")
+            or "em elaboração"
+        )
+        calculo = _resultado_para_dict(rascunho.get("resultado"))
+        render_tabela_memoria(
+            titulo=f"Cálculo atual (não inserido) — {tipo}: {desc}",
+            params=params,
+            calculo=calculo,
+            key_prefix="mem_draft",
+        )
+
+    if itens:
+        st.markdown("#### Itens incluídos na proposta")
+        render_memorias_itens(itens, key_prefix="mem_item")
+    elif not rascunho:
+        st.warning("Sem memória de cálculo.")

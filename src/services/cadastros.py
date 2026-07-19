@@ -313,3 +313,81 @@ def salvar_faca(
 def excluir_faca(conn: sqlite3.Connection, faca_id: int) -> None:
     conn.execute("DELETE FROM facas WHERE id = ?", (faca_id,))
     conn.commit()
+
+
+# ---- CRUD Suprimentos ----
+
+def listar_suprimentos(conn: sqlite3.Connection, *, ativos_only: bool = True) -> list[sqlite3.Row]:
+    sql = """
+        SELECT id, codigo, marca, descricao, nome_exibicao, preco_compra, custo, ativo
+        FROM suprimentos
+    """
+    if ativos_only:
+        sql += " WHERE COALESCE(ativo, 1) = 1"
+    sql += " ORDER BY nome_exibicao, descricao"
+    return list(conn.execute(sql))
+
+
+def obter_suprimento(conn: sqlite3.Connection, suprimento_id: int) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM suprimentos WHERE id = ? LIMIT 1",
+        (suprimento_id,),
+    ).fetchone()
+
+
+def salvar_suprimento(
+    conn: sqlite3.Connection,
+    *,
+    codigo: str,
+    marca: str | None,
+    descricao: str,
+    nome_exibicao: str,
+    preco_compra: float | None,
+    custo: float,
+    ativo: bool = True,
+    suprimento_id: int | None = None,
+) -> int:
+    if suprimento_id:
+        conn.execute(
+            """
+            UPDATE suprimentos
+            SET codigo=?, marca=?, descricao=?, nome_exibicao=?,
+                preco_compra=?, custo=?, ativo=?
+            WHERE id=?
+            """,
+            (
+                codigo,
+                marca,
+                descricao,
+                nome_exibicao,
+                preco_compra,
+                custo,
+                1 if ativo else 0,
+                suprimento_id,
+            ),
+        )
+        conn.commit()
+        return suprimento_id
+    cur = conn.execute(
+        """
+        INSERT INTO suprimentos
+            (codigo, marca, descricao, nome_exibicao, preco_compra, custo, ativo)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            codigo,
+            marca,
+            descricao,
+            nome_exibicao,
+            preco_compra,
+            custo,
+            1 if ativo else 0,
+        ),
+    )
+    conn.commit()
+    return int(cur.lastrowid)
+
+
+def excluir_suprimento(conn: sqlite3.Connection, suprimento_id: int) -> None:
+    conn.execute("DELETE FROM suprimentos WHERE id = ?", (suprimento_id,))
+    conn.commit()

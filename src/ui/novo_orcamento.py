@@ -11,6 +11,7 @@ from src.services.cadastros import (
     listar_caixas,
     listar_facas,
     listar_materias_primas,
+    listar_suprimentos,
     listar_tubetes,
     obter_caixa_por_nome,
     obter_faca_por_tipo,
@@ -42,7 +43,10 @@ from src.ui.state import (
     bump_form_seq,
     consumir_flash,
     flash_sucesso,
+    marcar_proposta_salva,
+    marcar_proposta_suja,
     media_lucro_pct_proposta,
+    proposta_esta_salva,
     reiniciar_proposta,
     totais_proposta,
     voltar,
@@ -211,12 +215,13 @@ def _painel_esquerda(conn, cfg, proposta, *, readonly: bool = False) -> None:
             f'<div class="orc-total-bar">Valor total dos itens: {brl(valor_total)}</div>',
             unsafe_allow_html=True,
         )
-        k1, k2, k3, k4 = st.columns(4)
+        k1, k2, k3 = st.columns(3)
         k1.metric("Lucro total", brl(lucro_total))
         k2.metric("Média lucro %", f"{media_lucro:.2f}%".replace(".", ","))
         k3.metric("Frete total incluso", brl(frete_total))
-        with k4:
-            st.write("")
+
+        b1, b2, b3 = st.columns(3)
+        with b1:
             if st.button(
                 "Memória de cálculo",
                 use_container_width=True,
@@ -225,10 +230,29 @@ def _painel_esquerda(conn, cfg, proposta, *, readonly: bool = False) -> None:
                 st.session_state.memoria_calculo = None  # só itens da proposta
                 st.session_state.show_dialog = "memoria"
                 st.rerun()
+        with b2:
             if not readonly and st.button(
-                "Gerar PDF da proposta", use_container_width=True, type="primary"
+                "Salvar orçamento",
+                use_container_width=True,
+                type="primary",
+                key="btn_salvar_orcamento",
             ):
-                _gerar_e_oferecer_pdf(conn, cfg, proposta)
+                _salvar_formacao_orcamento(conn, proposta)
+        with b3:
+            pdf_ok = proposta_esta_salva() and bool(proposta.get("itens")) and bool(
+                proposta.get("cliente")
+            )
+            if not readonly:
+                if st.button(
+                    "Gerar PDF da proposta",
+                    use_container_width=True,
+                    type="primary",
+                    key="btn_gerar_pdf",
+                    disabled=not pdf_ok,
+                ):
+                    _gerar_e_oferecer_pdf(conn, cfg, proposta)
+                if not proposta_esta_salva():
+                    st.caption("Salve o orçamento para habilitar o PDF.")
 
     if not readonly and modo in ("etiqueta", "suprimentos"):
         aplicar_scroll_se_pedido()
@@ -474,10 +498,28 @@ def _form_etiqueta_body(conn, cfg, proposta, facas, materias, tubetes, caixas) -
                         }
                     )
                     salvar_orcamento(conn, proposta, status="rascunho")
+                    marcar_proposta_suja()
                 bump_form_seq()
                 st.session_state.modo_form = None
                 flash_sucesso("Item inserido com sucesso. Formulário limpo para o próximo item.")
                 st.rerun()
+
+
+def _salvar_formacao_orcamento(conn, proposta) -> None:
+    if not proposta.get("cliente"):
+        st.error("Selecione um cliente antes de salvar.")
+        return
+    if not proposta.get("itens"):
+        st.error("Insira ao menos um item antes de salvar.")
+        return
+    with st.spinner("Salvando orçamento..."):
+        _garantir_numero(conn, proposta)
+        salvar_orcamento(conn, proposta, status="rascunho")
+        marcar_proposta_salva()
+    flash_sucesso(
+        f"Orçamento {proposta.get('numero')} salvo. Agora você pode gerar o PDF."
+    )
+    st.rerun()
 
 
 def _form_suprimentos(conn, cfg, proposta) -> None:
@@ -490,23 +532,54 @@ def _form_suprimentos(conn, cfg, proposta) -> None:
 
 
 def _form_suprimentos_body(conn, cfg, proposta) -> None:
+    catalogo = listar_suprimentos(conn)
+    cat_map = {
+        f"{r['codigo']} — {r['nome_exibicao'] or r['descricao']}": r for r in catalogo
+    }
+    cat_opts = ["(inserir manualmente)"] + list(cat_map.keys())
+    cat_sel = st.selectbox(
+        "Suprimento do cadastro",
+        cat_opts,
+        key=_fk("sup_cat"),
+        help="Selecione um pré-cadastro ou preencha manualmente.",
+    )
+    cat_row = cat_map.get(cat_sel) if cat_sel != "(inserir manualmente)" else None
+
     c1, c2 = st.columns(2)
     with c1:
-        descricao_in = st.text_input(
-            "Descrição do item",
-            value="",
-            placeholder=PLACE_INS,
-            key=_fk("sup_desc"),
-        )
-        custo_num = st.number_input(
-            "Custo",
-            min_value=0.0,
-            value=None,
-            step=0.01,
-            format="%.4f",
-            placeholder=PLACE_INS,
-            key=_fk("sup_custo"),
-        )
+        if cat_row is not None:
+            descricao_in = cat_row["nome_exibicao"] or cat_row["descricao"] or ""
+            st.text_input(
+                "Descrição do item",
+                value=descricao_in,
+                disabled=True,
+                key=_fk("sup_desc_locked"),
+            )
+            custo_default = float(cat_row["custo"] or 0)
+            custo_num = st.number_input(
+                "Custo",
+                min_value=0.0,
+                value=custo_default,
+                step=0.01,
+                format="%.4f",
+                key=_fk("sup_custo"),
+            )
+        else:
+            descricao_in = st.text_input(
+                "Descrição do item",
+                value="",
+                placeholder=PLACE_INS,
+                key=_fk("sup_desc"),
+            )
+            custo_num = st.number_input(
+                "Custo",
+                min_value=0.0,
+                value=None,
+                step=0.01,
+                format="%.4f",
+                placeholder=PLACE_INS,
+                key=_fk("sup_custo"),
+            )
         unidade = st.text_input(
             "Unidade de medida (nativo)",
             value=cfg.get("unidade_suprimentos", "UN"),
@@ -641,6 +714,7 @@ def _form_suprimentos_body(conn, cfg, proposta) -> None:
                         }
                     )
                     salvar_orcamento(conn, proposta, status="rascunho")
+                    marcar_proposta_suja()
                 bump_form_seq()
                 st.session_state.modo_form = None
                 flash_sucesso("Item inserido com sucesso. Formulário limpo para o próximo item.")
@@ -716,6 +790,7 @@ def _painel_proposta(conn, cfg, proposta, *, readonly: bool = False) -> None:
                     with st.spinner("Atualizando orçamento..."):
                         if proposta.get("numero"):
                             salvar_orcamento(conn, proposta, status="rascunho")
+                    marcar_proposta_suja()
                     flash_sucesso(f"Item {rem:02d} removido com sucesso.")
                     st.rerun()
         else:
@@ -946,6 +1021,7 @@ def _dialog_condicoes(cfg) -> None:
         value=p.get("orcamentista_email") or cfg.get("orcamentista_email"),
     )
     if st.button("Salvar condições", type="primary"):
+        marcar_proposta_suja()
         st.session_state.show_dialog = None
         flash_sucesso("Condições gerais salvas com sucesso.")
         st.rerun()

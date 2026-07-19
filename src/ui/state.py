@@ -134,10 +134,24 @@ def reiniciar_proposta(conn) -> None:
     cfg = carregar_config(conn)
     st.session_state.proposta = _nova_proposta(cfg)
     st.session_state.proposta_readonly = False
+    st.session_state.proposta_salva = False
     st.session_state.modo_form = None
     st.session_state.memoria_calculo = None
     st.session_state.show_dialog = None
     bump_form_seq()
+
+
+def marcar_proposta_suja() -> None:
+    """Itens/condições alterados — exige Salvar antes de Gerar PDF."""
+    st.session_state.proposta_salva = False
+
+
+def marcar_proposta_salva() -> None:
+    st.session_state.proposta_salva = True
+
+
+def proposta_esta_salva() -> bool:
+    return bool(st.session_state.get("proposta_salva"))
 
 
 def totais_proposta() -> tuple[float, float, float]:

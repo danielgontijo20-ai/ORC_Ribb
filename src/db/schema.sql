@@ -64,6 +64,17 @@ CREATE TABLE IF NOT EXISTS facas (
     area REAL NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS suprimentos (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    codigo TEXT NOT NULL UNIQUE,
+    marca TEXT,
+    descricao TEXT NOT NULL,
+    nome_exibicao TEXT,
+    preco_compra REAL,
+    custo REAL NOT NULL,
+    ativo INTEGER NOT NULL DEFAULT 1
+);
+
 CREATE TABLE IF NOT EXISTS faturamento (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     numero_nota TEXT,

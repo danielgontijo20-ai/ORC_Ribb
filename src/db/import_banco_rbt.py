@@ -26,6 +26,7 @@ from .database import DB_PATH, ROOT_DIR, connect, init_db
 from .defaults_config import ensure_config_defaults
 
 DEFAULT_XLSX = ROOT_DIR / "data" / "planilhas" / "Banco_RBT.xlsx"
+DEFAULT_SUPRIMENTOS_XLSX = ROOT_DIR / "data" / "planilhas" / "Tabela_Suprimentos.xlsx"
 
 
 def parse_br_number(value) -> float | None:
@@ -170,6 +171,40 @@ def import_caixas(conn: sqlite3.Connection, xlsx: Path) -> int:
         """
         INSERT INTO caixas (codigo, nome, custo)
         VALUES (?, ?, ?)
+        """,
+        rows,
+    )
+    return len(rows)
+
+
+def import_suprimentos(conn: sqlite3.Connection, xlsx: Path) -> int:
+    """Importa Tabela_Suprimentos.xlsx (aba Suprimentos)."""
+    if not xlsx.exists():
+        return 0
+    df = pd.read_excel(xlsx, sheet_name="Suprimentos")
+    rows = []
+    for _, row in df.iterrows():
+        codigo = clean_text(row.get("Código"))
+        descricao = clean_text(row.get("Descrição"))
+        if not codigo or not descricao:
+            continue
+        nome_exib = clean_text(row.get("Nome de Exibição")) or descricao
+        rows.append(
+            (
+                str(codigo),
+                clean_text(row.get("Marca")),
+                descricao,
+                nome_exib,
+                parse_br_number(row.get("Preço de Compra")),
+                parse_br_number(row.get("Preço de Custo")) or 0.0,
+                1,
+            )
+        )
+    conn.executemany(
+        """
+        INSERT OR REPLACE INTO suprimentos
+            (codigo, marca, descricao, nome_exibicao, preco_compra, custo, ativo)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
         rows,
     )
@@ -326,6 +361,7 @@ def print_summary(conn: sqlite3.Connection) -> None:
         "tubetes",
         "caixas",
         "facas",
+        "suprimentos",
         "faturamento",
     ]
     print("\n=== Resumo da importação ===")
@@ -353,6 +389,7 @@ def run_import(xlsx: Path, db_path: Path) -> None:
         n_facas = import_facas(conn, xlsx)
         n_seg, n_prod = import_segmentos_e_produtos(conn, xlsx)
         n_cli, n_fat = import_faturamento_e_clientes(conn, xlsx)
+        n_sup = import_suprimentos(conn, DEFAULT_SUPRIMENTOS_XLSX)
         ensure_config_defaults(conn)
         conn.commit()
 
@@ -361,6 +398,7 @@ def run_import(xlsx: Path, db_path: Path) -> None:
         print(f"- tubetes: {n_tub}")
         print(f"- caixas: {n_cx}")
         print(f"- facas: {n_facas}")
+        print(f"- suprimentos: {n_sup}")
         print(f"- segmentos: {n_seg}")
         print(f"- produtos: {n_prod}")
         print(f"- clientes: {n_cli}")

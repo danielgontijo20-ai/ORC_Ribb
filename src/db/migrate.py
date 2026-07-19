@@ -9,8 +9,11 @@ from __future__ import annotations
 
 import sqlite3
 
-from .database import DB_PATH, connect, init_db
+from pathlib import Path
+
+from .database import DB_PATH, ROOT_DIR, connect, init_db
 from .defaults_config import DEFAULT_CONFIG, ensure_config_defaults
+from .import_banco_rbt import import_suprimentos
 
 
 def _columns(conn: sqlite3.Connection, table: str) -> set[str]:
@@ -81,6 +84,17 @@ def migrate(db_path=DB_PATH) -> None:
         )
 
         ensure_config_defaults(conn)
+
+        # Suprimentos: importa pré-cadastro se a tabela estiver vazia
+        n_sup = conn.execute("SELECT COUNT(*) c FROM suprimentos").fetchone()["c"]
+        if n_sup == 0:
+            xlsx_sup = ROOT_DIR / "data" / "planilhas" / "Tabela_Suprimentos.xlsx"
+            if xlsx_sup.exists():
+                imported = import_suprimentos(conn, xlsx_sup)
+                print(f"+ suprimentos importados: {imported}")
+            else:
+                print(f"! Arquivo não encontrado: {xlsx_sup}")
+
         conn.commit()
 
     print(f"Migração concluída: {db_path}")

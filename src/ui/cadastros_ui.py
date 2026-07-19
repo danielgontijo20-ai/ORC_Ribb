@@ -13,14 +13,17 @@ from src.services.cadastros import (
     excluir_cliente,
     excluir_faca,
     excluir_materia,
+    excluir_suprimento,
     excluir_tubete,
     listar_caixas,
     listar_facas,
     listar_materias_primas,
+    listar_suprimentos,
     listar_tubetes,
     salvar_caixa,
     salvar_faca,
     salvar_materia,
+    salvar_suprimento,
     salvar_tubete,
     upsert_cliente,
 )
@@ -190,6 +193,8 @@ def render_cadastros(conn) -> None:
         _facas(conn)
     elif tela == "caixas":
         _caixas(conn)
+    elif tela == "suprimentos":
+        _suprimentos(conn)
     elif tela == "nativos":
         _valores_nativos(conn)
 
@@ -202,6 +207,7 @@ def _hub() -> None:
         ("Tubetes", "tubetes"),
         ("Facas", "facas"),
         ("Caixas", "caixas"),
+        ("Suprimentos", "suprimentos"),
         ("Valores Nativos", "nativos"),
     ]
     cols = st.columns(3)
@@ -683,6 +689,136 @@ def _facas(conn) -> None:
         on_salvar=_salvar,
         on_excluir=_excluir if atual else None,
         label_salvar="Salvar faca",
+    )
+
+
+def _suprimentos(conn) -> None:
+    tela = "suprimentos"
+    st.subheader("Suprimentos")
+    st.info(
+        "Pré-cadastro importado de **Tabela_Suprimentos.xlsx**. "
+        "O **nome de exibição** é usado na descrição do item na proposta."
+    )
+    rows = listar_suprimentos(conn, ativos_only=False)
+    st.caption("Clique na linha da grade para selecionar o registro.")
+    ids = {
+        f"{r['id']} - {r['nome_exibicao'] or r['descricao']}": r["id"] for r in rows
+    }
+    _restaurar_select_apos_cancel(
+        "sup_sel",
+        rows,
+        lambda r: f"{r['id']} - {r['nome_exibicao'] or r['descricao']}",
+    )
+    if rows:
+        df = pd.DataFrame(
+            [
+                {
+                    "id": r["id"],
+                    "codigo": r["codigo"],
+                    "marca": r["marca"],
+                    "descricao": r["descricao"],
+                    "nome_exibicao": r["nome_exibicao"],
+                    "preco_compra": r["preco_compra"],
+                    "custo": r["custo"],
+                    "ativo": "SIM" if r["ativo"] else "NÃO",
+                }
+                for r in rows
+            ]
+        )
+        idx = dataframe_selecionavel(df, key=f"sup_grid_{_cad_seq()}", height=280)
+        if idx is not None:
+            label = f"{rows[idx]['id']} - {rows[idx]['nome_exibicao'] or rows[idx]['descricao']}"
+            _sync_select_from_grid("sup_sel", label, tela)
+
+    modo = st.selectbox(
+        "Registro",
+        ["(novo)"] + list(ids.keys()),
+        key=_sel_key("sup_sel"),
+    )
+    _ao_mudar_registro(tela, modo)
+    atual = next((r for r in rows if modo != "(novo)" and r["id"] == ids[modo]), None)
+    bloqueado = _campos_bloqueados(tela, atual)
+
+    codigo = _text_input(
+        "Código",
+        _form_key("sup_cod", atual),
+        atual["codigo"] if atual else "",
+        disabled=bloqueado,
+    )
+    marca = _text_input(
+        "Marca",
+        _form_key("sup_marca", atual),
+        (atual["marca"] if atual and atual["marca"] else ""),
+        disabled=bloqueado,
+    )
+    descricao = _text_input(
+        "Descrição",
+        _form_key("sup_desc", atual),
+        atual["descricao"] if atual else "",
+        disabled=bloqueado,
+    )
+    nome_exib_default = ""
+    if atual:
+        nome_exib_default = atual["nome_exibicao"] or atual["descricao"] or ""
+    nome_exib = _text_input(
+        "Nome de exibição",
+        _form_key("sup_exib", atual),
+        nome_exib_default,
+        disabled=bloqueado,
+    )
+    preco = _number_input(
+        "Preço de compra",
+        _form_key("sup_preco", atual),
+        float(atual["preco_compra"] or 0) if atual else 0.0,
+        step=0.01,
+        disabled=bloqueado,
+    )
+    custo = _number_input(
+        "Custo",
+        _form_key("sup_custo", atual),
+        float(atual["custo"]) if atual else 0.0,
+        step=0.01,
+        disabled=bloqueado,
+    )
+    ativo_default = True if atual is None else bool(atual["ativo"])
+    _init_widget(_form_key("sup_ativo", atual), ativo_default)
+    ativo = st.checkbox(
+        "Ativo",
+        key=_form_key("sup_ativo", atual),
+        disabled=bloqueado,
+    )
+
+    def _salvar():
+        if not codigo.strip() or not descricao.strip():
+            st.error("Código e descrição são obrigatórios.")
+            return
+        salvar_suprimento(
+            conn,
+            codigo=codigo.strip(),
+            marca=marca.strip() or None,
+            descricao=descricao.strip(),
+            nome_exibicao=nome_exib.strip() or descricao.strip(),
+            preco_compra=preco,
+            custo=custo,
+            ativo=bool(ativo),
+            suprimento_id=atual["id"] if atual else None,
+        )
+        _bump_cad_seq()
+        flash_sucesso("Suprimento salvo com sucesso.")
+        st.rerun()
+
+    def _excluir():
+        excluir_suprimento(conn, atual["id"])
+        _bump_cad_seq()
+        flash_sucesso("Suprimento excluído com sucesso.")
+        st.rerun()
+
+    _botoes_crud(
+        tela,
+        atual=atual,
+        on_salvar=_salvar,
+        on_excluir=_excluir if atual else None,
+        label_salvar="Salvar suprimento",
     )
 
 

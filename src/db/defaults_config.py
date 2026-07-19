@@ -5,11 +5,11 @@ from __future__ import annotations
 import sqlite3
 
 DEFAULT_CONFIG: dict[str, str] = {
-    # Empresa (cabeçalho da proposta) — editar em Cadastros > Valores Nativos
-    "empresa_nome": "",
-    "empresa_cnpj": "",
-    "empresa_telefone": "",
-    "empresa_email": "",
+    # Empresa (cabeçalho da proposta)
+    "empresa_nome": "Ribbontech",
+    "empresa_cnpj": "00.000.000/00-00",
+    "empresa_telefone": "31 99830-8560",
+    "empresa_email": "ribbontech@ribbontech.com",
     # Cálculo
     "frete_padrao": "0",
     "perda_padrao": "0",
@@ -40,6 +40,14 @@ DEFAULT_CONFIG: dict[str, str] = {
     "proximo_numero_orcamento": "1",
 }
 
+# Chaves de empresa: se vazias no banco, aplicamos o padrão Ribbontech
+_EMPRESA_KEYS = (
+    "empresa_nome",
+    "empresa_cnpj",
+    "empresa_telefone",
+    "empresa_email",
+)
+
 
 def ensure_config_defaults(conn: sqlite3.Connection) -> None:
     for chave, valor in DEFAULT_CONFIG.items():
@@ -50,3 +58,15 @@ def ensure_config_defaults(conn: sqlite3.Connection) -> None:
             """,
             (chave, valor),
         )
+
+    # Preenche dados da empresa quando estiverem vazios
+    for chave in _EMPRESA_KEYS:
+        row = conn.execute(
+            "SELECT valor FROM configuracoes WHERE chave = ?", (chave,)
+        ).fetchone()
+        atual = (row["valor"] if row else "") or ""
+        if not str(atual).strip():
+            conn.execute(
+                "UPDATE configuracoes SET valor = ? WHERE chave = ?",
+                (DEFAULT_CONFIG[chave], chave),
+            )

@@ -117,5 +117,59 @@ APP_CSS = """
         border-radius: 12px !important;
         font-weight: 650 !important;
     }
+
+    /* Memória de cálculo — tabelas com contraste alto */
+    .mem-item-title {
+        color: var(--orc-primary);
+        font-weight: 750;
+        font-size: 1.05rem;
+        margin: 0.6rem 0 0.35rem 0;
+    }
+    .mem-table-wrap {
+        margin: 0.35rem 0 0.85rem 0;
+        border: 2px solid var(--orc-border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+        background: #fff;
+        box-shadow: 0 4px 12px rgba(10, 51, 88, 0.08);
+    }
+    .mem-table-caption {
+        background: var(--orc-primary);
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.85rem;
+        padding: 0.4rem 0.7rem;
+        letter-spacing: 0.02em;
+    }
+    .mem-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.92rem;
+    }
+    .mem-table thead th {
+        background: #d5e4f0;
+        color: var(--orc-text);
+        text-align: left;
+        padding: 0.45rem 0.7rem;
+        border-bottom: 2px solid var(--orc-border-strong);
+        font-weight: 750;
+    }
+    .mem-table td {
+        padding: 0.4rem 0.7rem;
+        border-bottom: 1px solid #c5d4e2;
+        color: var(--orc-text);
+    }
+    .mem-table .mem-row-even { background: #ffffff; }
+    .mem-table .mem-row-odd { background: #e8f0f7; }
+    .mem-table .mem-campo { font-weight: 650; width: 48%; }
+    .mem-table .mem-valor { font-variant-numeric: tabular-nums; text-align: right; }
+    .mem-sep { height: 0.55rem; border-bottom: 2px dashed var(--orc-border); margin-bottom: 0.55rem; }
+
+    /* Dataframes gerais com borda mais evidente */
+    div[data-testid="stDataFrame"] {
+        border: 2px solid var(--orc-border-strong);
+        border-radius: 10px;
+        overflow: hidden;
+    }
 </style>
 """

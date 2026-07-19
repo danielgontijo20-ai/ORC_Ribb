@@ -13,8 +13,18 @@ from src.services.orcamentos import (
 )
 from src.ui.formatters import brl
 from src.ui.grid_select import dataframe_selecionavel
-from src.ui.memoria_ui import render_memorias_itens
-from src.ui.state import bump_form_seq, flash_sucesso, ir_para, voltar
+from src.ui.memoria_ui import (
+    lucro_total_itens,
+    media_lucro_pct_proporcional,
+    render_memorias_itens,
+)
+from src.ui.state import (
+    bump_form_seq,
+    flash_sucesso,
+    ir_para,
+    marcar_proposta_suja,
+    voltar,
+)
 
 
 def render_historico_orcamentos(conn) -> None:
@@ -135,6 +145,7 @@ def _clonar(conn, orcamento_id: int) -> None:
     st.session_state.proposta = clonar_para_novo(orc)
     st.session_state.proposta_readonly = False
     st.session_state.modo_form = None
+    marcar_proposta_suja()
     bump_form_seq()
     flash_sucesso(
         f"Clone criado a partir de {orc.get('numero') or orcamento_id}. "
@@ -194,4 +205,11 @@ def _painel_detalhe(conn, orcamento_id: int) -> None:
             from src.services.orcamentos import orcamento_para_proposta
 
             prop = orcamento_para_proposta(orc)
-            render_memorias_itens(prop.get("itens") or [], key_prefix=f"hist_mem_{orcamento_id}")
+            itens_mem = prop.get("itens") or []
+            m1, m2 = st.columns(2)
+            m1.metric("Lucro total", brl(lucro_total_itens(itens_mem)))
+            m2.metric(
+                "Média de margens",
+                f"{media_lucro_pct_proporcional(itens_mem):.2f}%".replace(".", ","),
+            )
+            render_memorias_itens(itens_mem, key_prefix=f"hist_mem_{orcamento_id}")
