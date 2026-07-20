@@ -119,7 +119,11 @@ def migrate(db_path=DB_PATH) -> None:
 
 
 def _migrate_orcamentos_status(conn: sqlite3.Connection) -> None:
-    """Amplia CHECK de status e normaliza 'finalizado' → 'gerado'."""
+    """Amplia CHECK de status e normaliza 'finalizado' → 'gerado'.
+
+    Importante: PRAGMA foreign_keys=OFF é no-op dentro de transação. Sem commit
+    prévio, o DROP de orcamentos dispara ON DELETE CASCADE e apaga os itens.
+    """
     row = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='orcamentos'"
     ).fetchone()
@@ -130,6 +134,23 @@ def _migrate_orcamentos_status(conn: sqlite3.Connection) -> None:
 
     if precisa_rebuild:
         print("+ orcamentos.status: ampliando CHECK (gerado/aprovado/reprovado)")
+        # Fecha transação aberta (UPDATEs anteriores) — senão FK OFF não vale.
+        conn.commit()
+        conn.execute("PRAGMA foreign_keys=OFF")
+        if conn.execute("PRAGMA foreign_keys").fetchone()[0]:
+            raise sqlite3.OperationalError(
+                "Não foi possível desligar foreign_keys antes do rebuild de orcamentos"
+            )
+
+        # Backup dos itens para restaurar se o CASCADE ainda apagar algo
+        conn.execute("DROP TABLE IF EXISTS _orcamento_itens_bak")
+        conn.execute(
+            "CREATE TABLE _orcamento_itens_bak AS SELECT * FROM orcamento_itens"
+        )
+        n_itens_bak = conn.execute(
+            "SELECT COUNT(*) AS c FROM _orcamento_itens_bak"
+        ).fetchone()["c"]
+
         cols_info = list(conn.execute("PRAGMA table_info(orcamentos)").fetchall())
         col_defs: list[str] = []
         for c in cols_info:
@@ -159,7 +180,6 @@ def _migrate_orcamentos_status(conn: sqlite3.Connection) -> None:
         if "reprovacao_observacao" not in {c["name"] for c in cols_info}:
             col_defs.append("reprovacao_observacao TEXT")
 
-        conn.execute("PRAGMA foreign_keys=OFF")
         conn.execute("DROP TABLE IF EXISTS orcamentos_new")
         create_sql = (
             "CREATE TABLE orcamentos_new (\n  "
@@ -176,6 +196,34 @@ def _migrate_orcamentos_status(conn: sqlite3.Connection) -> None:
         )
         conn.execute("DROP TABLE orcamentos")
         conn.execute("ALTER TABLE orcamentos_new RENAME TO orcamentos")
+
+        n_itens = conn.execute(
+            "SELECT COUNT(*) AS c FROM orcamento_itens"
+        ).fetchone()["c"]
+        if n_itens_bak and n_itens < n_itens_bak:
+            print(
+                f"! orcamento_itens perdeu linhas no rebuild "
+                f"({n_itens}/{n_itens_bak}). Restaurando backup…"
+            )
+            conn.execute("DELETE FROM orcamento_itens")
+            bak_cols = [
+                r["name"]
+                for r in conn.execute("PRAGMA table_info(_orcamento_itens_bak)")
+            ]
+            live_cols = _columns(conn, "orcamento_itens")
+            comuns_itens = [c for c in bak_cols if c in live_cols]
+            cols_i = ", ".join(comuns_itens)
+            conn.execute(
+                f"INSERT INTO orcamento_itens ({cols_i}) "
+                f"SELECT {cols_i} FROM _orcamento_itens_bak"
+            )
+            n_itens = conn.execute(
+                "SELECT COUNT(*) AS c FROM orcamento_itens"
+            ).fetchone()["c"]
+            print(f"+ orcamento_itens restaurados: {n_itens}")
+
+        conn.execute("DROP TABLE IF EXISTS _orcamento_itens_bak")
+        conn.commit()
         conn.execute("PRAGMA foreign_keys=ON")
 
     # Legado: finalizado passa a ser tratado como gerado
