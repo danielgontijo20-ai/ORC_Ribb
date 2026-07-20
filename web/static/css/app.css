@@ -370,8 +370,6 @@ table.data tr:nth-child(odd) { background: #FFFFFF; }
   border-color: #6B7280;
   color: #4B5563;
 }
-.modal-backdrop[hidden] { display: none !important; }
-
 .orc-grid {
   display: grid;
   grid-template-columns: 1.05fr 1fr;
@@ -470,6 +468,15 @@ textarea {
   padding: 2rem 1rem;
   z-index: 50;
   overflow: auto;
+}
+/* Modais abertos só via JS (ex.: Reprovar) — fechados por padrão */
+.modal-backdrop.js-modal:not(.is-open) {
+  display: none !important;
+  pointer-events: none;
+}
+.modal-backdrop.js-modal.is-open {
+  display: flex !important;
+  pointer-events: auto;
 }
 .modal {
   width: min(720px, 100%);

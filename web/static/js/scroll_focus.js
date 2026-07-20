@@ -13,7 +13,17 @@
     if (hash) {
       scrollToEl(document.getElementById(hash));
     } else {
-      var modal = document.querySelector(".modal-backdrop");
+      // Só foca modais já abertos (ignora js-modal fechado, ex.: Reprovar)
+      var modal =
+        document.querySelector(".modal-backdrop.is-open") ||
+        Array.prototype.find.call(
+          document.querySelectorAll(".modal-backdrop"),
+          function (el) {
+            return (
+              !el.classList.contains("js-modal") && !el.hasAttribute("hidden")
+            );
+          }
+        );
       var formItem = document.getElementById("form-item");
       if (modal) scrollToEl(modal);
       else if (formItem) scrollToEl(formItem);

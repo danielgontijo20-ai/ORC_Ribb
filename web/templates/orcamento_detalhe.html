@@ -92,7 +92,7 @@
 </div>
 
 {% if pode_reprovar %}
-<div class="modal-backdrop" id="modal-reprovar" hidden>
+<div class="modal-backdrop js-modal" id="modal-reprovar" aria-hidden="true">
   <div class="modal card">
     <div class="topbar" style="margin-bottom:0.75rem">
       <h3 style="margin:0">Reprovar orçamento</h3>
@@ -113,8 +113,14 @@
 (function () {
   var modal = document.getElementById("modal-reprovar");
   if (!modal) return;
-  function openM() { modal.hidden = false; }
-  function closeM() { modal.hidden = true; }
+  function openM() {
+    modal.classList.add("is-open");
+    modal.setAttribute("aria-hidden", "false");
+  }
+  function closeM() {
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+  }
   document.querySelectorAll("[data-open-reprovar]").forEach(function (el) {
     el.addEventListener("click", openM);
   });
