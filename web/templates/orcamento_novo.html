@@ -19,7 +19,7 @@
   </div>
   <div class="userbox">
     <a class="btn btn-ghost" href="/menu">← Menu</a>
-    {% if proposta.numero %}<div class="muted">{{ proposta.numero }} · {{ status_label }}</div>{% endif %}
+    {% if proposta.numero %}<div class="muted">{{ proposta.numero }} · <span class="{{ status_badge }}">{{ status_label }}</span></div>{% endif %}
   </div>
 </div>
 
@@ -75,10 +75,14 @@
         {% elif not readonly %}
         <button class="btn" type="button" disabled title="Salve o orçamento para habilitar">Imprimir PDF</button>
         {% endif %}
-        {% if readonly and proposta.id and status_label == 'Orçamento gerado' and has_perm(user, 'orcamento.aprovar') %}
+        {% if pode_decidir_status %}
         <form method="post" action="/orcamentos/{{ proposta.id }}/aprovar"><button class="btn btn-primary" type="submit">Aprovar</button></form>
+        <button class="btn btn-danger" type="button" data-open-reprovar>Reprovar</button>
         {% endif %}
       </div>
+      {% if readonly and proposta.status == 'reprovado' and proposta.reprovacao_observacao %}
+      <p class="muted" style="margin-top:0.65rem"><strong>Motivo da reprovação:</strong> {{ proposta.reprovacao_observacao }}</p>
+      {% endif %}
       {% if not readonly and not proposta_salva %}<p class="muted">Salve o orçamento para habilitar o PDF.</p>{% endif %}
     </div>
   </div>
@@ -519,4 +523,41 @@
 
 <script id="orc-cat" type="application/json">{{ cat_json | tojson }}</script>
 <script src="/static/js/orcamento_preview.js?v=lucro-pct-2"></script>
+
+{% if pode_decidir_status %}
+<div class="modal-backdrop" id="modal-reprovar" hidden>
+  <div class="modal card">
+    <div class="topbar" style="margin-bottom:0.75rem">
+      <h3 style="margin:0">Reprovar orçamento</h3>
+      <button class="btn" type="button" data-close-reprovar>Fechar</button>
+    </div>
+    <p class="muted">Informe uma observação para justificar a reprovação (opcional).</p>
+    <form method="post" action="/orcamentos/{{ proposta.id }}/reprovar">
+      <label>Observação</label>
+      <textarea name="observacao" rows="4" placeholder="Motivo da reprovação (opcional)"></textarea>
+      <div class="btn-row" style="margin-top:0.85rem">
+        <button class="btn" type="button" data-close-reprovar>Cancelar</button>
+        <button class="btn btn-danger" type="submit">Confirmar reprovação</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var modal = document.getElementById("modal-reprovar");
+  if (!modal) return;
+  function openM() { modal.hidden = false; }
+  function closeM() { modal.hidden = true; }
+  document.querySelectorAll("[data-open-reprovar]").forEach(function (el) {
+    el.addEventListener("click", openM);
+  });
+  document.querySelectorAll("[data-close-reprovar]").forEach(function (el) {
+    el.addEventListener("click", closeM);
+  });
+  modal.addEventListener("click", function (e) {
+    if (e.target === modal) closeM();
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

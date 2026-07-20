@@ -12,6 +12,7 @@ from typing import Any
 STATUS_RASCUNHO = "rascunho"
 STATUS_GERADO = "gerado"
 STATUS_APROVADO = "aprovado"
+STATUS_REPROVADO = "reprovado"
 STATUS_CANCELADO = "cancelado"
 
 STATUS_LABELS: dict[str, str] = {
@@ -19,6 +20,7 @@ STATUS_LABELS: dict[str, str] = {
     STATUS_GERADO: "Orçamento gerado",
     "finalizado": "Orçamento gerado",  # legado
     STATUS_APROVADO: "Aprovado",
+    STATUS_REPROVADO: "Reprovado",
     STATUS_CANCELADO: "Cancelado",
 }
 
@@ -27,6 +29,19 @@ def label_status(status: str | None) -> str:
     if not status:
         return "-"
     return STATUS_LABELS.get(str(status), str(status))
+
+
+def status_badge_class(status: str | None) -> str:
+    """Classe CSS do badge por status (cores na lista/detalhe)."""
+    st = (status or "").strip().lower()
+    if st == STATUS_APROVADO:
+        return "badge badge-status-aprovado"
+    if st == STATUS_REPROVADO:
+        return "badge badge-status-reprovado"
+    if st == STATUS_RASCUNHO:
+        return "badge badge-status-rascunho"
+    # gerado / finalizado / demais: cor atual do sistema
+    return "badge badge-status-gerado"
 
 
 def _now() -> str:
@@ -310,16 +325,42 @@ def buscar_orcamentos(
 
 
 def atualizar_status_orcamento(
-    conn: sqlite3.Connection, orcamento_id: int, status: str
+    conn: sqlite3.Connection,
+    orcamento_id: int,
+    status: str,
+    *,
+    observacao_reprovacao: str | None = None,
 ) -> None:
-    conn.execute(
-        """
-        UPDATE orcamentos
-        SET status = ?, atualizado_em = ?
-        WHERE id = ?
-        """,
-        (status, _now(), orcamento_id),
-    )
+    cols = _cols(conn, "orcamentos")
+    agora = _now()
+    if "reprovacao_observacao" in cols and status == STATUS_REPROVADO:
+        obs = (observacao_reprovacao or "").strip() or None
+        conn.execute(
+            """
+            UPDATE orcamentos
+            SET status = ?, reprovacao_observacao = ?, atualizado_em = ?
+            WHERE id = ?
+            """,
+            (status, obs, agora, orcamento_id),
+        )
+    elif "reprovacao_observacao" in cols and status == STATUS_APROVADO:
+        conn.execute(
+            """
+            UPDATE orcamentos
+            SET status = ?, reprovacao_observacao = NULL, atualizado_em = ?
+            WHERE id = ?
+            """,
+            (status, agora, orcamento_id),
+        )
+    else:
+        conn.execute(
+            """
+            UPDATE orcamentos
+            SET status = ?, atualizado_em = ?
+            WHERE id = ?
+            """,
+            (status, agora, orcamento_id),
+        )
     conn.commit()
 
 
@@ -425,6 +466,7 @@ def orcamento_para_proposta(orc: dict) -> dict:
         "frete_taxa": orc.get("frete_taxa") if orc.get("frete_taxa") is not None else "",
         "impostos": orc.get("impostos"),
         "informacoes_adicionais": orc.get("informacoes_adicionais"),
+        "reprovacao_observacao": orc.get("reprovacao_observacao") or "",
         "orcamentista_nome": orc.get("orcamentista_nome") or "",
         "orcamentista_cargo": orc.get("orcamentista_cargo") or "",
         "orcamentista_telefone": orc.get("orcamentista_telefone") or "",
@@ -440,9 +482,9 @@ def clonar_para_novo(orc: dict) -> dict:
     proposta["id"] = None
     proposta["numero"] = None
     proposta["status"] = None
+    proposta["reprovacao_observacao"] = ""
     proposta["itens"] = deepcopy(proposta.get("itens") or [])
     return proposta
-
 
 def _parse_float(valor) -> float | None:
     if valor is None or valor == "":

@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS orcamentos (
     cliente_avulso_documento TEXT,
     solicitante TEXT,
     status TEXT NOT NULL DEFAULT 'rascunho'
-        CHECK (status IN ('rascunho', 'gerado', 'aprovado', 'finalizado', 'cancelado')),
+        CHECK (status IN ('rascunho', 'gerado', 'aprovado', 'reprovado', 'finalizado', 'cancelado')),
     validade_proposta TEXT,
     prazo_pagamento TEXT,
     prazo_entrega TEXT,
@@ -125,6 +125,7 @@ CREATE TABLE IF NOT EXISTS orcamentos (
     frete_taxa REAL,
     impostos TEXT,
     informacoes_adicionais TEXT,
+    reprovacao_observacao TEXT,
     orcamentista_nome TEXT,
     orcamentista_cargo TEXT,
     orcamentista_telefone TEXT,

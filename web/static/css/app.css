@@ -342,6 +342,28 @@ table.data tr:nth-child(odd) { background: #FFFFFF; }
   font-size: 0.8rem;
   font-weight: 750;
 }
+/* Status: gerado mantém a cor atual; demais com cores distintas */
+.badge-status-gerado {
+  background: #D5E4F0;
+  border-color: #5A748A;
+  color: var(--orc-primary);
+}
+.badge-status-aprovado {
+  background: #D9F2E1;
+  border-color: #1F7A3D;
+  color: #145C2C;
+}
+.badge-status-reprovado {
+  background: #F8D7D7;
+  border-color: #A61F1F;
+  color: #7A1212;
+}
+.badge-status-rascunho {
+  background: #E5E7EB;
+  border-color: #6B7280;
+  color: #4B5563;
+}
+.modal-backdrop[hidden] { display: none !important; }
 
 .orc-grid {
   display: grid;

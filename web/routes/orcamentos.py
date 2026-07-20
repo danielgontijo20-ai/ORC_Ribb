@@ -33,6 +33,7 @@ from src.services.orcamentos import (
     STATUS_APROVADO,
     STATUS_GERADO,
     STATUS_RASCUNHO,
+    STATUS_REPROVADO,
     atualizar_status_orcamento,
     buscar_orcamentos,
     clonar_para_novo,
@@ -40,6 +41,7 @@ from src.services.orcamentos import (
     obter_orcamento,
     orcamento_para_proposta,
     salvar_orcamento,
+    status_badge_class,
 )
 from src.services.pdf_memoria import gerar_pdf_memoria
 from src.services.pdf_proposta import gerar_pdf_proposta
@@ -145,6 +147,13 @@ def _ctx_novo(request: Request, conn, user, *, form_vals: dict | None = None) ->
         "pct": pct,
         "proposta_salva": ps.proposta_esta_salva(request),
         "status_label": label_status(proposta.get("status")),
+        "status_badge": status_badge_class(proposta.get("status")),
+        "pode_decidir_status": (
+            ps.is_readonly(request)
+            and bool(proposta.get("id"))
+            and (proposta.get("status") or "").lower() in ("gerado", "finalizado")
+            and usuario_tem_permissao(user, "orcamento.aprovar")
+        ),
         "clientes": clientes,
         "termo_cli": termo_cli,
         "total_clientes": contar_clientes(conn, termo=termo_cli or None)
@@ -350,6 +359,7 @@ def lista(
         lista_rows = [dict(r) for r in rows]
         for r in lista_rows:
             r["status_label"] = label_status(r.get("status"))
+            r["status_badge"] = status_badge_class(r.get("status"))
 
     return render(
         request,
@@ -1262,6 +1272,10 @@ def detalhe(request: Request, orcamento_id: int):
         return HTMLResponse("Orçamento não encontrado.", status_code=404)
 
     status = (orc.get("status") or "").lower()
+    pode_decidir = usuario_tem_permissao(user, "orcamento.aprovar") and status in (
+        "gerado",
+        "finalizado",
+    )
     return render(
         request,
         "orcamento_detalhe.html",
@@ -1269,9 +1283,10 @@ def detalhe(request: Request, orcamento_id: int):
             "user": user,
             "orc": orc,
             "status_label": label_status(orc.get("status")),
+            "status_badge": status_badge_class(orc.get("status")),
             "brl": brl,
-            "pode_aprovar": usuario_tem_permissao(user, "orcamento.aprovar")
-            and status in ("gerado", "finalizado"),
+            "pode_aprovar": pode_decidir,
+            "pode_reprovar": pode_decidir,
             "pode_pdf": usuario_tem_permissao(user, "orcamento.pdf"),
             "pode_consultar": True,
             "pode_clonar": usuario_tem_permissao(user, "orcamento.criar"),
@@ -1288,7 +1303,38 @@ def aprovar(request: Request, orcamento_id: int):
     if err:
         return err
     with connect() as conn:
-        atualizar_status_orcamento(conn, orcamento_id, STATUS_APROVADO)
+        orc = obter_orcamento(conn, orcamento_id)
+        if not orc:
+            return HTMLResponse("Orçamento não encontrado.", status_code=404)
+        st = (orc.get("status") or "").lower()
+        if st in ("gerado", "finalizado"):
+            atualizar_status_orcamento(conn, orcamento_id, STATUS_APROVADO)
+    return RedirectResponse(f"/orcamentos/{orcamento_id}", status_code=303)
+
+
+@router.post("/{orcamento_id}/reprovar")
+async def reprovar(request: Request, orcamento_id: int):
+    user, err = _require_user(request, "orcamento.aprovar")
+    if err:
+        return err
+    form = await request.form()
+    observacao = str(form.get("observacao") or "").strip()
+    with connect() as conn:
+        orc = obter_orcamento(conn, orcamento_id)
+        if not orc:
+            return HTMLResponse("Orçamento não encontrado.", status_code=404)
+        st = (orc.get("status") or "").lower()
+        if st in ("gerado", "finalizado"):
+            atualizar_status_orcamento(
+                conn,
+                orcamento_id,
+                STATUS_REPROVADO,
+                observacao_reprovacao=observacao,
+            )
+    # Volta para a tela de onde veio (consulta readonly ou detalhe)
+    referer = (request.headers.get("referer") or "").lower()
+    if "/orcamentos/novo" in referer:
+        return RedirectResponse("/orcamentos/novo", status_code=303)
     return RedirectResponse(f"/orcamentos/{orcamento_id}", status_code=303)
 
 

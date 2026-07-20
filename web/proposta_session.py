@@ -178,7 +178,12 @@ def carregar_proposta_do_banco(
     request.session[SESSION_PROPOSTA_ID] = proposta["id"]
     request.session.pop(SESSION_DRAFT, None)
     status = (proposta.get("status") or "").lower()
-    request.session[SESSION_SALVA] = status in (STATUS_GERADO, "finalizado", "aprovado")
+    request.session[SESSION_SALVA] = status in (
+        STATUS_GERADO,
+        "finalizado",
+        "aprovado",
+        "reprovado",
+    )
     request.session[SESSION_MODO] = None
     request.session[SESSION_READONLY] = bool(readonly)
     return proposta

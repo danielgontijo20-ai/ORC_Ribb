@@ -24,6 +24,7 @@
         <option value="" {% if not status %}selected{% endif %}>(todos)</option>
         <option value="gerado" {% if status=='gerado' %}selected{% endif %}>Orçamento gerado</option>
         <option value="aprovado" {% if status=='aprovado' %}selected{% endif %}>Aprovado</option>
+        <option value="reprovado" {% if status=='reprovado' %}selected{% endif %}>Reprovado</option>
         <option value="rascunho" {% if status=='rascunho' %}selected{% endif %}>Rascunho</option>
       </select>
     </div>
@@ -50,7 +51,7 @@
       <tr>
         <td>{{ r.numero or '-' }}</td>
         <td>{{ r.cliente_nome or '-' }}</td>
-        <td><span class="badge">{{ r.status_label }}</span></td>
+        <td><span class="{{ r.status_badge }}">{{ r.status_label }}</span></td>
         <td>{{ brl(r.valor_total or 0) }}</td>
         <td>{{ r.atualizado_em or '-' }}</td>
         <td class="row-actions">

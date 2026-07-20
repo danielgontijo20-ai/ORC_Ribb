@@ -10,7 +10,10 @@
   <p>
     <strong>Cliente:</strong> {{ orc.cliente_nome or '-' }}<br/>
     <strong>CNPJ:</strong> {{ orc.cliente_doc or '-' }}<br/>
-    <strong>Status:</strong> <span class="badge">{{ status_label }}</span><br/>
+    <strong>Status:</strong> <span class="{{ status_badge }}">{{ status_label }}</span><br/>
+    {% if orc.status == 'reprovado' and orc.reprovacao_observacao %}
+    <strong>Motivo da reprovação:</strong> {{ orc.reprovacao_observacao }}<br/>
+    {% endif %}
     <strong>Valor total:</strong> {{ brl(orc.valor_total or 0) }}<br/>
     <strong>Lucro:</strong> {{ brl(orc.lucro_total or 0) }}<br/>
     <strong>Criado em:</strong> {{ orc.criado_em }}<br/>
@@ -40,6 +43,9 @@
       <button class="btn btn-primary" type="submit">Aprovar</button>
     </form>
     {% endif %}
+    {% if pode_reprovar %}
+    <button class="btn btn-danger" type="button" data-open-reprovar>Reprovar</button>
+    {% endif %}
     {% if pode_clonar %}
     <form method="post" action="/orcamentos/{{ orc.id }}/clonar" style="margin:0">
       <button class="btn btn-primary" type="submit">Clonar</button>
@@ -47,7 +53,7 @@
     {% endif %}
   </div>
   <p class="muted" style="margin-top:0.75rem">
-    Orçamentos gerados/aprovados não são editáveis. Use <strong>Clonar</strong> para criar uma cópia editável.
+    Orçamentos gerados/aprovados/reprovados não são editáveis. Use <strong>Clonar</strong> para criar uma cópia editável.
   </p>
 </div>
 
@@ -80,4 +86,41 @@
     </tbody>
   </table>
 </div>
+
+{% if pode_reprovar %}
+<div class="modal-backdrop" id="modal-reprovar" hidden>
+  <div class="modal card">
+    <div class="topbar" style="margin-bottom:0.75rem">
+      <h3 style="margin:0">Reprovar orçamento</h3>
+      <button class="btn" type="button" data-close-reprovar>Fechar</button>
+    </div>
+    <p class="muted">Informe uma observação para justificar a reprovação (opcional).</p>
+    <form method="post" action="/orcamentos/{{ orc.id }}/reprovar">
+      <label>Observação</label>
+      <textarea name="observacao" rows="4" placeholder="Motivo da reprovação (opcional)"></textarea>
+      <div class="btn-row" style="margin-top:0.85rem">
+        <button class="btn" type="button" data-close-reprovar>Cancelar</button>
+        <button class="btn btn-danger" type="submit">Confirmar reprovação</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var modal = document.getElementById("modal-reprovar");
+  if (!modal) return;
+  function openM() { modal.hidden = false; }
+  function closeM() { modal.hidden = true; }
+  document.querySelectorAll("[data-open-reprovar]").forEach(function (el) {
+    el.addEventListener("click", openM);
+  });
+  document.querySelectorAll("[data-close-reprovar]").forEach(function (el) {
+    el.addEventListener("click", closeM);
+  });
+  modal.addEventListener("click", function (e) {
+    if (e.target === modal) closeM();
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

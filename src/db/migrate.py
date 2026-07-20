@@ -57,6 +57,7 @@ def migrate(db_path=DB_PATH) -> None:
             ("orcamentista_email", "TEXT"),
             ("frete_total", "REAL DEFAULT 0"),
             ("empresa_cnpj", "TEXT"),
+            ("reprovacao_observacao", "TEXT"),
         ]:
             _add_column_if_missing(conn, "orcamentos", col, decl)
 
@@ -123,43 +124,49 @@ def _migrate_orcamentos_status(conn: sqlite3.Connection) -> None:
         "SELECT sql FROM sqlite_master WHERE type='table' AND name='orcamentos'"
     ).fetchone()
     ddl = (row["sql"] if row else "") or ""
-    precisa_rebuild = "gerado" not in ddl or "aprovado" not in ddl
+    precisa_rebuild = (
+        "gerado" not in ddl or "aprovado" not in ddl or "reprovado" not in ddl
+    )
 
     if precisa_rebuild:
-        print("+ orcamentos.status: ampliando CHECK (gerado/aprovado)")
+        print("+ orcamentos.status: ampliando CHECK (gerado/aprovado/reprovado)")
+        cols_info = list(conn.execute("PRAGMA table_info(orcamentos)").fetchall())
+        col_defs: list[str] = []
+        for c in cols_info:
+            name = c["name"]
+            if name == "id":
+                col_defs.append("id INTEGER PRIMARY KEY AUTOINCREMENT")
+            elif name == "status":
+                col_defs.append(
+                    "status TEXT NOT NULL DEFAULT 'rascunho' "
+                    "CHECK (status IN ("
+                    "'rascunho', 'gerado', 'aprovado', 'reprovado', "
+                    "'finalizado', 'cancelado'))"
+                )
+            else:
+                typ = (c["type"] or "TEXT").strip() or "TEXT"
+                notnull = " NOT NULL" if c["notnull"] else ""
+                dflt = c["dflt_value"]
+                if dflt is None:
+                    dflt_sql = ""
+                else:
+                    dflt_s = str(dflt)
+                    # Expressões (ex.: datetime('now')) precisam de parênteses no DEFAULT
+                    if "(" in dflt_s and not dflt_s.startswith("("):
+                        dflt_s = f"({dflt_s})"
+                    dflt_sql = f" DEFAULT {dflt_s}"
+                col_defs.append(f"{name} {typ}{notnull}{dflt_sql}")
+        if "reprovacao_observacao" not in {c["name"] for c in cols_info}:
+            col_defs.append("reprovacao_observacao TEXT")
+
         conn.execute("PRAGMA foreign_keys=OFF")
         conn.execute("DROP TABLE IF EXISTS orcamentos_new")
-        conn.execute(
-            """
-            CREATE TABLE orcamentos_new (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                numero TEXT,
-                cliente_id INTEGER,
-                cliente_avulso_nome TEXT,
-                cliente_avulso_documento TEXT,
-                solicitante TEXT,
-                status TEXT NOT NULL DEFAULT 'rascunho'
-                    CHECK (status IN ('rascunho', 'gerado', 'aprovado', 'finalizado', 'cancelado')),
-                validade_proposta TEXT,
-                prazo_pagamento TEXT,
-                prazo_entrega TEXT,
-                frete_tipo TEXT,
-                frete_taxa REAL,
-                impostos TEXT,
-                informacoes_adicionais TEXT,
-                orcamentista_nome TEXT,
-                orcamentista_cargo TEXT,
-                orcamentista_telefone TEXT,
-                orcamentista_email TEXT,
-                lucro_total REAL DEFAULT 0,
-                valor_total REAL DEFAULT 0,
-                frete_total REAL DEFAULT 0,
-                criado_em TEXT NOT NULL DEFAULT (datetime('now')),
-                atualizado_em TEXT NOT NULL DEFAULT (datetime('now')),
-                FOREIGN KEY (cliente_id) REFERENCES clientes(id)
-            )
-            """
+        create_sql = (
+            "CREATE TABLE orcamentos_new (\n  "
+            + ",\n  ".join(col_defs)
+            + ",\n  FOREIGN KEY (cliente_id) REFERENCES clientes(id)\n)"
         )
+        conn.execute(create_sql)
         cols_old = _columns(conn, "orcamentos")
         cols_new = _columns(conn, "orcamentos_new")
         comuns = [c for c in cols_new if c in cols_old]
