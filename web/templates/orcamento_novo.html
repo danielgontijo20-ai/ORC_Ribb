@@ -76,8 +76,12 @@
         <button class="btn" type="button" disabled title="Salve o orçamento para habilitar">Imprimir PDF</button>
         {% endif %}
         {% if pode_decidir_status %}
-        <form method="post" action="/orcamentos/{{ proposta.id }}/aprovar"><button class="btn btn-primary" type="submit">Aprovar</button></form>
-        <button class="btn btn-danger" type="button" data-open-reprovar>Reprovar</button>
+        <div class="btn-pair">
+          <form method="post" action="/orcamentos/{{ proposta.id }}/aprovar" style="margin:0">
+            <button class="btn btn-primary" type="submit">Aprovar</button>
+          </form>
+          <button class="btn btn-primary" type="button" data-open-reprovar>Reprovar</button>
+        </div>
         {% endif %}
       </div>
       {% if readonly and proposta.status == 'reprovado' and proposta.reprovacao_observacao %}

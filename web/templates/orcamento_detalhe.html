@@ -38,13 +38,17 @@
     {% if pode_pdf %}
     <a class="btn btn-primary" href="/orcamentos/{{ orc.id }}/pdf">Imprimir PDF</a>
     {% endif %}
-    {% if pode_aprovar %}
-    <form method="post" action="/orcamentos/{{ orc.id }}/aprovar" style="margin:0">
-      <button class="btn btn-primary" type="submit">Aprovar</button>
-    </form>
-    {% endif %}
-    {% if pode_reprovar %}
-    <button class="btn btn-danger" type="button" data-open-reprovar>Reprovar</button>
+    {% if pode_aprovar or pode_reprovar %}
+    <div class="btn-pair">
+      {% if pode_aprovar %}
+      <form method="post" action="/orcamentos/{{ orc.id }}/aprovar" style="margin:0">
+        <button class="btn btn-primary" type="submit">Aprovar</button>
+      </form>
+      {% endif %}
+      {% if pode_reprovar %}
+      <button class="btn btn-primary" type="button" data-open-reprovar>Reprovar</button>
+      {% endif %}
+    </div>
     {% endif %}
     {% if pode_clonar %}
     <form method="post" action="/orcamentos/{{ orc.id }}/clonar" style="margin:0">
