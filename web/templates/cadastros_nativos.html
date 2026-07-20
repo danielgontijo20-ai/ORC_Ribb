@@ -24,8 +24,8 @@
     <div class="form-grid">
       <div><label>Frete padrão</label><input name="frete_padrao" value="{{ cfg.frete_padrao or '0' }}" {% if not pode_editar %}readonly{% endif %} /></div>
       <div><label>Perda padrão</label><input name="perda_padrao" value="{{ cfg.perda_padrao or '0' }}" {% if not pode_editar %}readonly{% endif %} /></div>
-      <div><label>Lucro etiqueta (%)</label><input name="lucro_etiqueta_padrao" value="{{ cfg.lucro_etiqueta_padrao or '30' }}" {% if not pode_editar %}readonly{% endif %} /></div>
-      <div><label>Lucro suprimentos (%)</label><input name="lucro_suprimentos_padrao" value="{{ cfg.lucro_suprimentos_padrao or '20' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>Lucro etiqueta (%)</label><input name="lucro_etiqueta_padrao" value="{{ cfg.lucro_etiqueta_padrao or '30' }}" placeholder="ex.: 30 = 30%" title="Digite 30 para 30% (armazenado como 0,30)" {% if not pode_editar %}readonly{% endif %} /><p class="muted field-hint">30 = 30% (fator 0,30 nos cálculos)</p></div>
+      <div><label>Lucro suprimentos (%)</label><input name="lucro_suprimentos_padrao" value="{{ cfg.lucro_suprimentos_padrao or '20' }}" placeholder="ex.: 20 = 20%" title="Digite 20 para 20% (armazenado como 0,20)" {% if not pode_editar %}readonly{% endif %} /><p class="muted field-hint">20 = 20% (fator 0,20 nos cálculos)</p></div>
       <div>
         <label>Difal padrão</label>
         {% if pode_editar %}

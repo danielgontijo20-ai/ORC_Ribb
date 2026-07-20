@@ -429,7 +429,8 @@
           </div>
           <div>
             <label>Lucro % (nativo)</label>
-            <input name="lucro" type="number" step="1" min="0" max="500" value="{{ form_vals.lucro if form_vals.lucro is defined and form_vals.lucro != '' else defaults.lucro_etiqueta }}" />
+            <input name="lucro" type="number" step="1" min="0" max="500" title="Digite 20 para 20% (cálculo usa 0,20)" placeholder="ex.: 20 = 20%" value="{{ form_vals.lucro if form_vals.lucro is defined and form_vals.lucro != '' else defaults.lucro_etiqueta }}" />
+            <p class="muted field-hint">Digite 20 para 20% — o sistema usa 0,20 no cálculo.</p>
           </div>
           <div class="span-2">
             <label>Valor do frete (nativo)</label>
@@ -492,7 +493,8 @@
           </div>
           <div>
             <label>Lucro % (nativo)</label>
-            <input name="lucro" type="number" step="1" min="0" max="500" value="{{ form_vals.lucro if form_vals.lucro is defined and form_vals.lucro != '' else defaults.lucro_suprimentos }}" />
+            <input name="lucro" type="number" step="1" min="0" max="500" title="Digite 20 para 20% (cálculo usa 0,20)" placeholder="ex.: 20 = 20%" value="{{ form_vals.lucro if form_vals.lucro is defined and form_vals.lucro != '' else defaults.lucro_suprimentos }}" />
+            <p class="muted field-hint">Digite 20 para 20% — o sistema usa 0,20 no cálculo.</p>
           </div>
           <div>
             <label>Quantidade</label>
@@ -516,5 +518,5 @@
 {% endif %}
 
 <script id="orc-cat" type="application/json">{{ cat_json | tojson }}</script>
-<script src="/static/js/orcamento_preview.js"></script>
+<script src="/static/js/orcamento_preview.js?v=lucro-pct-2"></script>
 {% endblock %}
