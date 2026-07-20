@@ -734,52 +734,6 @@ input:disabled, select:disabled, textarea:disabled {
   border: 2px solid #C9A227;
   box-shadow: 0 6px 16px rgba(160, 120, 20, 0.14);
 }
-
-.edit-items-box {
-  margin-top: 1rem;
-  padding: 0.75rem;
-  border: 2px solid #9ED3EC;
-  border-radius: 12px;
-  background: #F7FBFE;
-}
-.edit-items-title {
-  margin: 0 0 0.55rem;
-  font-size: 0.95rem;
-  color: var(--orc-primary);
-  font-weight: 700;
-}
-.edit-items-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  max-height: 220px;
-  overflow: auto;
-}
-.edit-item-row {
-  display: grid;
-  grid-template-columns: auto auto 1fr auto;
-  gap: 0.45rem 0.55rem;
-  align-items: center;
-  padding: 0.45rem 0.55rem;
-  border: 1px solid #C5D4E2;
-  border-radius: 8px;
-  background: #fff;
-  cursor: pointer;
-  font-weight: 400;
-}
-.edit-item-row:hover,
-.edit-item-row.is-selected {
-  border-color: #2FA6DD;
-  background: #EAF6FC;
-}
-.edit-item-num { font-weight: 700; color: var(--orc-primary); }
-.edit-item-desc {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.9rem;
-}
-.edit-item-val { font-weight: 650; color: #0A3358; white-space: nowrap; }
 .preview-desc {
   margin: 0.85rem 0 0;
   font-weight: 600;
