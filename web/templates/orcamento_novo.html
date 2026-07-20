@@ -37,10 +37,31 @@
       <h3>Formação de orçamento</h3>
       {% if not readonly %}
       <div class="btn-row btn-row-equal">
-        <form method="post" action="/orcamentos/novo/modo"><input type="hidden" name="modo" value="etiqueta" /><button class="btn btn-primary {% if modo=='etiqueta' %}is-active{% endif %}" type="submit">Inserir nova etiqueta</button></form>
-        <form method="post" action="/orcamentos/novo/modo"><input type="hidden" name="modo" value="suprimentos" /><button class="btn btn-primary {% if modo=='suprimentos' %}is-active{% endif %}" type="submit">Inserir novo suprimento</button></form>
+        <form method="post" action="/orcamentos/novo/modo"><input type="hidden" name="modo" value="etiqueta" /><button class="btn btn-primary {% if modo=='etiqueta' and edit_index is none %}is-active{% endif %}" type="submit">Inserir nova etiqueta</button></form>
+        <form method="post" action="/orcamentos/novo/modo"><input type="hidden" name="modo" value="suprimentos" /><button class="btn btn-primary {% if modo=='suprimentos' and edit_index is none %}is-active{% endif %}" type="submit">Inserir novo suprimento</button></form>
         <form method="post" action="/orcamentos/novo/dialog"><input type="hidden" name="dialog" value="condicoes" /><button class="btn btn-primary" type="submit">Condições gerais</button></form>
         <form method="post" action="/orcamentos/novo/limpar"><button class="btn btn-primary" type="submit">Limpar orçamento (começar do zero)</button></form>
+      </div>
+      {% endif %}
+
+      {% if proposta.itens and not readonly %}
+      <div class="edit-items-box">
+        <h4 class="edit-items-title">Itens na prévia — selecionar para editar</h4>
+        <form method="post" action="/orcamentos/novo/item/editar">
+          <div class="edit-items-list">
+            {% for it in proposta.itens %}
+            <label class="edit-item-row {% if edit_index is not none and edit_index == loop.index0 %}is-selected{% endif %}">
+              <input type="radio" name="indice" value="{{ loop.index }}" {% if edit_index is not none and edit_index == loop.index0 %}checked{% elif loop.first and edit_index is none %}checked{% endif %} />
+              <span class="edit-item-num">{{ '%02d'|format(loop.index) }}</span>
+              <span class="edit-item-desc">{{ it.descricao }}</span>
+              <span class="edit-item-val">{{ brl(it.valor_venda_total) }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <div class="btn-row">
+            <button class="btn btn-primary" type="submit">Editar item selecionado</button>
+          </div>
+        </form>
       </div>
       {% endif %}
 
@@ -333,7 +354,16 @@
 <div class="modal-backdrop" id="form-item">
   <div class="modal card modal-wide">
     <div class="topbar" style="margin-bottom:0.5rem">
-      <h3 style="margin:0">{% if modo == 'etiqueta' %}Inserir etiqueta{% else %}Inserir suprimento{% endif %}</h3>
+      <h3 style="margin:0">
+        {% if edit_index is not none %}
+          Editar item {{ '%02d'|format(edit_index + 1) }} —
+          {% if modo == 'etiqueta' %}etiqueta{% else %}suprimento{% endif %}
+        {% elif modo == 'etiqueta' %}
+          Inserir etiqueta
+        {% else %}
+          Inserir suprimento
+        {% endif %}
+      </h3>
       <form method="post" action="/orcamentos/novo/modo"><input type="hidden" name="modo" value="fechar" /><button class="btn" type="submit">Fechar</button></form>
     </div>
 
@@ -417,7 +447,7 @@
         <p class="muted" id="etq-hint">Preencha/selecione os campos — os valores atualizam ao completar.</p>
         <div class="btn-row">
           <button class="btn" type="submit" name="acao" value="memoria">Exibir memória de cálculo</button>
-          <button class="btn btn-primary" type="submit" name="acao" value="inserir">Inserir item na proposta</button>
+          <button class="btn btn-primary" type="submit" name="acao" value="inserir">{% if edit_index is not none %}Atualizar item na proposta{% else %}Inserir item na proposta{% endif %}</button>
         </div>
       </form>
       {% endif %}
@@ -479,7 +509,7 @@
         <p class="muted" id="sup-hint">Preencha/selecione os campos — os valores atualizam ao completar.</p>
         <div class="btn-row">
           <button class="btn" type="submit" name="acao" value="memoria">Exibir memória de cálculo</button>
-          <button class="btn btn-primary" type="submit" name="acao" value="inserir">Inserir item na proposta</button>
+          <button class="btn btn-primary" type="submit" name="acao" value="inserir">{% if edit_index is not none %}Atualizar item na proposta{% else %}Inserir item na proposta{% endif %}</button>
         </div>
       </form>
     {% endif %}

@@ -125,6 +125,9 @@ def _ctx_novo(request: Request, conn, user, *, form_vals: dict | None = None) ->
     if frete_exibicao == "Taxa" and proposta.get("frete_taxa") not in (None, ""):
         frete_exibicao = f"Taxa: {proposta.get('frete_taxa')}"
 
+    vals = form_vals if form_vals is not None else ps.get_form_vals(request)
+    edit_index = ps.get_edit_index(request)
+
     cats = _catalogos(conn)
     return {
         "user": user,
@@ -151,7 +154,8 @@ def _ctx_novo(request: Request, conn, user, *, form_vals: dict | None = None) ->
         "memoria_lucro_total": memoria_lucro_total,
         "memoria_media_margem": memoria_media_margem,
         "frete_exibicao": frete_exibicao,
-        "form_vals": form_vals or {},
+        "form_vals": vals,
+        "edit_index": edit_index,
         "preview_item": None,
         **cats,
         "defaults": {
@@ -224,6 +228,73 @@ def _montar_linhas_memoria(
     secoes = coletar_secoes_memoria(itens, rasc)
     lucro, media = resumo_memoria(itens, rasc)
     return secoes, lucro, media
+
+
+def _item_para_form_vals(item: dict) -> tuple[str, dict]:
+    """Converte item da proposta em (modo, form_vals) para edição."""
+    tipo = (item.get("tipo_item") or "").lower()
+    params = item.get("parametros") or {}
+    if tipo == "etiqueta":
+        return "etiqueta", {
+            "tipo_faca": params.get("faca") or params.get("Dimensão") or "(selecione)",
+            "materia_nome": params.get("materia")
+            or params.get("Matéria-prima")
+            or "(selecione)",
+            "tubete_nome": params.get("tubete") or params.get("Tubete") or "(selecione)",
+            "caixa_nome": params.get("caixa") or params.get("Caixa") or "",
+            "unidade": params.get("unidade") or item.get("unidade") or "Rol",
+            "qtd_etq": params.get("qtd_etq") or params.get("Qtd etiquetas/rolo") or "",
+            "qtd_total": params.get("qtd_total")
+            or params.get("Nº rolos")
+            or item.get("quantidade")
+            or "",
+            "qtd_caixas": params.get("qtd_caixas") or params.get("Qtd caixas") or "",
+            "perda": params.get("perda") if params.get("perda") is not None else params.get("Perda", ""),
+            "lucro": params.get("lucro") if params.get("lucro") is not None else params.get("Lucro", ""),
+            "frete": params.get("frete")
+            if params.get("frete") is not None
+            else (params.get("Frete") if params.get("Frete") is not None else item.get("frete_item", "")),
+        }
+    # suprimentos (padrão)
+    difal = params.get("difal")
+    if isinstance(difal, bool):
+        difal = "SIM" if difal else "NÃO"
+    difal = (difal or params.get("Difal") or "SIM")
+    if str(difal).upper() in ("NAO", "NÃO", "N"):
+        difal = "NÃO"
+    elif str(difal).upper() == "SIM":
+        difal = "SIM"
+    return "suprimentos", {
+        "catalogo": params.get("catalogo") or "",
+        "descricao": params.get("descricao")
+        or params.get("Descrição")
+        or item.get("descricao")
+        or "",
+        "unidade": params.get("unidade") or item.get("unidade") or "UN",
+        "difal": difal,
+        "custo": params.get("custo") if params.get("custo") is not None else params.get("Custo", ""),
+        "quantidade": params.get("quantidade")
+        if params.get("quantidade") is not None
+        else (params.get("Quantidade") if params.get("Quantidade") is not None else item.get("quantidade", "")),
+        "lucro": params.get("lucro") if params.get("lucro") is not None else params.get("Lucro", ""),
+        "frete": params.get("frete")
+        if params.get("frete") is not None
+        else (params.get("Frete") if params.get("Frete") is not None else item.get("frete_item", "")),
+    }
+
+
+def _salvar_ou_atualizar_item(request: Request, proposta: dict, item: dict) -> str:
+    """Insere ou substitui item conforme índice de edição. Retorna mensagem."""
+    itens = list(proposta.get("itens") or [])
+    edit_idx = ps.get_edit_index(request)
+    if edit_idx is not None and 0 <= edit_idx < len(itens):
+        itens[edit_idx] = item
+        proposta["itens"] = itens
+        ps.set_edit_index(request, None)
+        return "Item atualizado com sucesso."
+    itens.append(item)
+    proposta["itens"] = itens
+    return "Item inserido com sucesso. Formulário limpo para o próximo item."
 
 
 def _redirect_novo(query: str = "", *, anchor: str = "") -> RedirectResponse:
@@ -322,9 +393,12 @@ def set_modo_form(request: Request, modo: str = Form(...)):
         return blocked
     if modo in ("etiqueta", "suprimentos"):
         ps.set_modo(request, modo)
-        request.session.pop("web_form_vals", None)
+        ps.clear_form_vals(request)
+        ps.set_edit_index(request, None)
     elif modo == "fechar":
         ps.set_modo(request, None)
+        ps.clear_form_vals(request)
+        ps.set_edit_index(request, None)
     return _redirect_novo(anchor="form-item" if modo in ("etiqueta", "suprimentos") else "")
 
 
@@ -345,11 +419,15 @@ def set_dialog(request: Request, dialog: str = Form(...)):
         if dialog == "fechar":
             ps.set_dialog(request, None)
             ps.set_memoria(request, None)
+            # Mantém modo + form_vals para reabrir o formulário preenchido.
         elif dialog == "memoria":
-            ps.set_memoria(request, None)
+            # Não limpa rascunho se já veio do formulário; só abre o dialog.
             ps.set_dialog(request, "memoria")
         else:
             ps.set_dialog(request, dialog)
+    # Ao fechar memória com formulário ativo, volta ao popup do form.
+    if dialog == "fechar" and ps.get_modo(request):
+        return _redirect_novo(anchor="form-item")
     return _redirect_novo(anchor="modal" if dialog != "fechar" else "")
 
 
@@ -564,6 +642,7 @@ async def inserir_etiqueta(request: Request):
                 "Preencha/selecione: " + ", ".join(faltando),
             )
             ps.set_modo(request, "etiqueta")
+            ps.set_form_vals(request, form_vals)
             ctx = _ctx_novo(request, conn, user, form_vals=form_vals)
             return render(request, "orcamento_novo.html", ctx)
 
@@ -609,30 +688,20 @@ async def inserir_etiqueta(request: Request):
         if acao == "memoria":
             ps.set_dialog(request, "memoria")
             ps.set_modo(request, "etiqueta")
+            ps.set_form_vals(request, form_vals)
             rascunho_mem = {
                 "tipo": "etiqueta",
                 "params": params,
                 "calc": resultado.to_dict(),
             }
             ps.set_memoria(request, rascunho_mem)
-            proposta = ps.get_proposta(request, conn)
-            ctx = _ctx_novo(request, conn, user, form_vals=form_vals)
-            linhas, mem_lucro, mem_media = _montar_linhas_memoria(proposta, rascunho_mem)
-            ctx["memoria_linhas"] = linhas
-            ctx["memoria_lucro_total"] = mem_lucro
-            ctx["memoria_media_margem"] = mem_media
-            ctx["preview_item"] = {
-                "descricao": descricao,
-                "unitario": resultado.preco_com_imposto,
-                "total": resultado.valor_venda_total,
-                "lucro": resultado.lucro_total,
-            }
-            return render(request, "orcamento_novo.html", ctx)
+            return _redirect_novo(anchor="modal")
 
         proposta = ps.get_proposta(request, conn)
         if not proposta.get("cliente"):
             ps.flash_err(request, "Selecione um cliente antes de inserir o item.")
             ps.set_modo(request, "etiqueta")
+            ps.set_form_vals(request, form_vals)
             ctx = _ctx_novo(request, conn, user, form_vals=form_vals)
             ctx["preview_item"] = {
                 "descricao": descricao,
@@ -643,7 +712,9 @@ async def inserir_etiqueta(request: Request):
             return render(request, "orcamento_novo.html", ctx)
 
         _garantir_numero(conn, proposta)
-        proposta["itens"].append(
+        msg = _salvar_ou_atualizar_item(
+            request,
+            proposta,
             {
                 "tipo_item": "etiqueta",
                 "descricao": descricao,
@@ -660,20 +731,23 @@ async def inserir_etiqueta(request: Request):
                     "tubete": tubete_nome,
                     "caixa": caixa_nome,
                     "qtd_etq": qtd_etq,
+                    "qtd_total": qtd_total,
+                    "qtd_caixas": qtd_caixas,
                     "perda": perda,
                     "lucro": lucro,
+                    "frete": frete,
+                    "unidade": unidade,
                 },
-            }
+            },
         )
         ps.persistir(request, conn, proposta, status=STATUS_RASCUNHO)
         ps.marcar_suja(request)
         ps.set_modo(request, None)
         ps.set_dialog(request, None)
         ps.set_memoria(request, None)
-        ps.flash_ok(
-            request,
-            "Item inserido com sucesso. Formulário limpo para o próximo item.",
-        )
+        ps.clear_form_vals(request)
+        ps.set_edit_index(request, None)
+        ps.flash_ok(request, msg)
     return _redirect_novo()
 
 
@@ -731,6 +805,7 @@ async def inserir_suprimento(request: Request):
                 "Preencha/selecione: " + ", ".join(faltando),
             )
             ps.set_modo(request, "suprimentos")
+            ps.set_form_vals(request, form_vals)
             ctx = _ctx_novo(request, conn, user, form_vals=form_vals)
             return render(request, "orcamento_novo.html", ctx)
 
@@ -764,24 +839,21 @@ async def inserir_suprimento(request: Request):
             )
             ps.set_dialog(request, "memoria")
             ps.set_modo(request, "suprimentos")
-            ctx = _ctx_novo(request, conn, user, form_vals=form_vals)
-            ctx["preview_item"] = {
-                "descricao": descricao,
-                "unitario": resultado.preco_com_imposto,
-                "total": resultado.valor_venda_total,
-                "lucro": resultado.lucro_total,
-            }
-            return render(request, "orcamento_novo.html", ctx)
+            ps.set_form_vals(request, form_vals)
+            return _redirect_novo(anchor="modal")
 
         proposta = ps.get_proposta(request, conn)
         if not proposta.get("cliente"):
             ps.flash_err(request, "Selecione um cliente antes de inserir o item.")
             ps.set_modo(request, "suprimentos")
+            ps.set_form_vals(request, form_vals)
             ctx = _ctx_novo(request, conn, user, form_vals=form_vals)
             return render(request, "orcamento_novo.html", ctx)
 
         _garantir_numero(conn, proposta)
-        proposta["itens"].append(
+        msg = _salvar_ou_atualizar_item(
+            request,
+            proposta,
             {
                 "tipo_item": "suprimentos",
                 "descricao": descricao,
@@ -796,19 +868,51 @@ async def inserir_suprimento(request: Request):
                     "custo": custo,
                     "difal": difal,
                     "lucro": lucro,
+                    "frete": frete,
+                    "quantidade": quantidade,
+                    "descricao": descricao_in,
+                    "unidade": unidade,
+                    "catalogo": catalogo_sel,
                 },
-            }
+            },
         )
         ps.persistir(request, conn, proposta, status=STATUS_RASCUNHO)
         ps.marcar_suja(request)
         ps.set_modo(request, None)
         ps.set_dialog(request, None)
         ps.set_memoria(request, None)
+        ps.clear_form_vals(request)
+        ps.set_edit_index(request, None)
+        ps.flash_ok(request, msg)
+    return _redirect_novo()
+
+
+@router.post("/novo/item/editar")
+def editar_item(request: Request, indice: int = Form(...)):
+    """Abre o formulário com os dados do item selecionado na prévia."""
+    user, err = _require_user(request, "orcamento.criar")
+    if err:
+        return err
+    blocked = _block_readonly(request)
+    if blocked:
+        return blocked
+    with connect() as conn:
+        proposta = ps.get_proposta(request, conn)
+        itens = proposta.get("itens") or []
+        if not (1 <= indice <= len(itens)):
+            ps.flash_err(request, "Selecione um item válido para editar.")
+            return _redirect_novo()
+        item = itens[indice - 1]
+        modo, form_vals = _item_para_form_vals(item)
+        ps.set_modo(request, modo)
+        ps.set_form_vals(request, form_vals)
+        ps.set_edit_index(request, indice - 1)
+        ps.set_dialog(request, None)
         ps.flash_ok(
             request,
-            "Item inserido com sucesso. Formulário limpo para o próximo item.",
+            f"Editando item {indice:02d}. Altere os campos e salve para atualizar a prévia.",
         )
-    return _redirect_novo()
+    return _redirect_novo(anchor="form-item")
 
 
 @router.post("/novo/item/remover")
@@ -825,6 +929,14 @@ def remover_item(request: Request, indice: int = Form(...)):
         if 1 <= indice <= len(itens):
             itens.pop(indice - 1)
             proposta["itens"] = itens
+            edit_idx = ps.get_edit_index(request)
+            if edit_idx is not None:
+                if edit_idx == indice - 1:
+                    ps.set_edit_index(request, None)
+                    ps.clear_form_vals(request)
+                    ps.set_modo(request, None)
+                elif edit_idx > indice - 1:
+                    ps.set_edit_index(request, edit_idx - 1)
             if proposta.get("id") or proposta.get("numero"):
                 ps.persistir(request, conn, proposta, status=STATUS_RASCUNHO)
             else:

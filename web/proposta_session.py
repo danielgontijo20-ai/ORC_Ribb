@@ -29,6 +29,8 @@ SESSION_FLASH_ERR = "web_flash_err"
 SESSION_DIALOG = "web_dialog"
 SESSION_MEMORIA = "web_memoria"
 SESSION_READONLY = "web_proposta_readonly"
+SESSION_FORM_VALS = "web_form_vals"
+SESSION_EDIT_INDEX = "web_edit_index"
 
 
 def nova_proposta(cfg: dict[str, str]) -> dict:
@@ -139,6 +141,8 @@ def reiniciar_proposta(request: Request, conn) -> dict:
     request.session[SESSION_DIALOG] = None
     request.session[SESSION_MEMORIA] = None
     request.session[SESSION_READONLY] = False
+    request.session.pop(SESSION_FORM_VALS, None)
+    request.session.pop(SESSION_EDIT_INDEX, None)
     return proposta
 
 
@@ -219,6 +223,38 @@ def get_memoria(request: Request) -> dict | None:
 
 def set_memoria(request: Request, data: dict | None) -> None:
     request.session[SESSION_MEMORIA] = data
+
+
+def get_form_vals(request: Request) -> dict:
+    vals = request.session.get(SESSION_FORM_VALS)
+    return dict(vals) if isinstance(vals, dict) else {}
+
+
+def set_form_vals(request: Request, vals: dict | None) -> None:
+    if vals:
+        request.session[SESSION_FORM_VALS] = dict(vals)
+    else:
+        request.session.pop(SESSION_FORM_VALS, None)
+
+
+def clear_form_vals(request: Request) -> None:
+    request.session.pop(SESSION_FORM_VALS, None)
+
+
+def get_edit_index(request: Request) -> int | None:
+    raw = request.session.get(SESSION_EDIT_INDEX)
+    try:
+        idx = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return idx if idx >= 0 else None
+
+
+def set_edit_index(request: Request, index: int | None) -> None:
+    if index is None:
+        request.session.pop(SESSION_EDIT_INDEX, None)
+    else:
+        request.session[SESSION_EDIT_INDEX] = int(index)
 
 
 def totais(proposta: dict) -> tuple[float, float, float]:
