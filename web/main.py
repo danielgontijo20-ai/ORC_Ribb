@@ -16,7 +16,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
-from src.db.database import DB_PATH, ROOT_DIR, connect
+from src.db.database import DB_PATH, ROOT_DIR, connect, db_fs_status, ensure_db_dir
 from src.db.migrate import migrate
 from src.services.usuarios import autenticar
 from web.config import APP_NAME, SECRET_KEY, SESSION_MAX_AGE
@@ -26,6 +26,18 @@ from web.routes import cadastros, historico_vendas, menu, orcamentos, usuarios
 from web.templating import render
 
 BASE_DIR = Path(__file__).resolve().parent
+
+_DB_FIX_HINT = (
+    "Erro no banco de dados (não abre o SQLite). Na VPS execute: "
+    "cd /var/www/ORC_Ribb && "
+    "mkdir -p data/database data/logos && "
+    "id=$(systemctl show -p User --value orc-ribb); "
+    "id=${id:-www-data}; "
+    "chown -R \"$id:$id\" data && "
+    "chmod 755 data data/database data/logos && "
+    "source .venv/bin/activate && python -m src.db.migrate && "
+    "systemctl restart orc-ribb && curl -s http://127.0.0.1:8000/health"
+)
 
 app = FastAPI(title=APP_NAME)
 app.add_middleware(
@@ -53,7 +65,15 @@ app.include_router(usuarios.router)
 
 @app.on_event("startup")
 def _startup() -> None:
-    migrate()
+    try:
+        ensure_db_dir()
+        migrate()
+    except Exception:
+        logging.exception(
+            "Startup: falha ao preparar/abrir o banco em %s. Status FS: %s",
+            DB_PATH,
+            db_fs_status(),
+        )
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -76,31 +96,27 @@ def login_submit(
     email: str = Form(...),
     senha: str = Form(...),
 ):
-    import logging
-    import sqlite3
-
     try:
         with connect() as conn:
             user = autenticar(conn, email, senha)
     except sqlite3.OperationalError as exc:
-        # Banco sem tabelas de auth / migração pendente — tenta recuperar.
-        logging.exception("Login: erro de schema/banco (%s). Rodando migrate…", exc)
+        # Banco sem tabelas / pasta / permissão — tenta recuperar com migrate.
+        logging.exception(
+            "Login: erro de schema/banco (%s). FS=%s. Rodando migrate…",
+            exc,
+            db_fs_status(),
+        )
         try:
+            ensure_db_dir()
             migrate()
             with connect() as conn:
                 user = autenticar(conn, email, senha)
-        except Exception as exc2:
-            logging.exception("Login: falha após migrate")
+        except Exception:
+            logging.exception("Login: falha após migrate. FS=%s", db_fs_status())
             return render(
                 request,
                 "login.html",
-                {
-                    "erro": (
-                        "Erro no banco de dados. Na VPS execute: "
-                        "cd /var/www/ORC_Ribb && source .venv/bin/activate && "
-                        "python -m src.db.migrate && systemctl restart orc-ribb"
-                    )
-                },
+                {"erro": f"{_DB_FIX_HINT} Detalhe: {exc}"},
                 status_code=500,
             )
     except Exception:
@@ -133,10 +149,7 @@ def login_submit(
 @app.get("/health")
 def health():
     """Checagem rápida para diagnóstico (sem autenticação)."""
-    import sqlite3
-
-    from src.db.database import DB_PATH
-
+    fs = db_fs_status()
     try:
         with connect() as conn:
             conn.execute("SELECT 1").fetchone()
@@ -155,9 +168,12 @@ def health():
             "db": str(DB_PATH),
             "auth_tables": tem_auth,
             "usuarios": n_users,
+            "fs": fs,
         }
     except sqlite3.Error as exc:
-        return {"ok": False, "error": str(exc), "db": str(DB_PATH)}
+        return {"ok": False, "error": str(exc), "db": str(DB_PATH), "fs": fs}
+    except OSError as exc:
+        return {"ok": False, "error": str(exc), "db": str(DB_PATH), "fs": fs}
 
 
 @app.get("/logout")
