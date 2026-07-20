@@ -9,3 +9,10 @@ venv/
 *.log
 .pytest_cache/
 .mypy_cache/
+
+# Banco e uploads locais/produção — não versionar
+data/database/*.db
+data/database/*.db-*
+data/logos/*
+!data/logos/.gitkeep
+!data/database/.gitkeep
