@@ -44,27 +44,6 @@
       </div>
       {% endif %}
 
-      {% if proposta.itens and not readonly %}
-      <div class="edit-items-box">
-        <h4 class="edit-items-title">Itens na prévia — selecionar para editar</h4>
-        <form method="post" action="/orcamentos/novo/item/editar">
-          <div class="edit-items-list">
-            {% for it in proposta.itens %}
-            <label class="edit-item-row {% if edit_index is not none and edit_index == loop.index0 %}is-selected{% endif %}">
-              <input type="radio" name="indice" value="{{ loop.index }}" {% if edit_index is not none and edit_index == loop.index0 %}checked{% elif loop.first and edit_index is none %}checked{% endif %} />
-              <span class="edit-item-num">{{ '%02d'|format(loop.index) }}</span>
-              <span class="edit-item-desc">{{ it.descricao }}</span>
-              <span class="edit-item-val">{{ brl(it.valor_venda_total) }}</span>
-            </label>
-            {% endfor %}
-          </div>
-          <div class="btn-row">
-            <button class="btn btn-primary" type="submit">Editar item selecionado</button>
-          </div>
-        </form>
-      </div>
-      {% endif %}
-
       <div class="total-bar result-highlight">Valor total dos itens: {{ brl(valor_total) }}</div>
       <div class="metrics result-highlight">
         <div><span class="muted">Lucro total</span><strong>{{ brl(lucro_total) }}</strong></div>
@@ -138,6 +117,11 @@
         <label style="margin:0">Remover item (nº)</label>
         <input name="indice" type="number" min="1" max="{{ proposta.itens|length }}" value="1" style="max-width:90px" />
         <button class="btn btn-primary" type="submit">Remover item</button>
+      </form>
+      <form method="post" action="/orcamentos/novo/item/editar" class="btn-row">
+        <label style="margin:0">Editar item (nº)</label>
+        <input name="indice" type="number" min="1" max="{{ proposta.itens|length }}" value="{{ (edit_index + 1) if edit_index is not none else 1 }}" style="max-width:90px" />
+        <button class="btn btn-primary" type="submit">Editar item</button>
       </form>
       {% endif %}
       {% else %}
