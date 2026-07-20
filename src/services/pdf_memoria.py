@@ -18,7 +18,7 @@ from reportlab.platypus import (
 )
 
 from src.ui.formatters import brl, pct
-from src.ui.memoria_ui import coletar_secoes_memoria, resumo_memoria
+from src.services.memoria_format import coletar_secoes_memoria, resumo_memoria
 
 
 def _esc(texto: str) -> str:

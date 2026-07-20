@@ -44,8 +44,8 @@ from src.services.orcamentos import (
 from src.services.pdf_memoria import gerar_pdf_memoria
 from src.services.pdf_proposta import gerar_pdf_proposta
 from src.services.usuarios import usuario_tem_permissao
+from src.services.memoria_format import coletar_secoes_memoria, resumo_memoria
 from src.ui.formatters import brl, pct
-from src.ui.memoria_ui import coletar_secoes_memoria, resumo_memoria
 from web.deps import get_current_user
 from web import proposta_session as ps
 from web.logos import logo_url
