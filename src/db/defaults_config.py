@@ -7,10 +7,11 @@ import sqlite3
 DEFAULT_CONFIG: dict[str, str] = {
     # Empresa (cabeçalho da proposta)
     "empresa_nome": "Ribbontech",
-    "empresa_cnpj": "00.000.000/00-00",
+    "empresa_cnpj": "51.832.369/0001-00",
+    "empresa_cnpj_2": "31.382.218/0001-81",
     "empresa_telefone": "31 99830-8560",
     "empresa_email": "ribbontech@ribbontech.com",
-    # Cálculo
+    # Cálculo (lucro/perda internos em fator: 0.30 = 30%)
     "frete_padrao": "0",
     "perda_padrao": "0",
     "lucro_etiqueta_padrao": "0.30",
@@ -44,9 +45,16 @@ DEFAULT_CONFIG: dict[str, str] = {
 _EMPRESA_KEYS = (
     "empresa_nome",
     "empresa_cnpj",
+    "empresa_cnpj_2",
     "empresa_telefone",
     "empresa_email",
 )
+
+_CNPJ_PLACEHOLDERS = {
+    "",
+    "00.000.000/00-00",
+    "00.000.000/0000-00",
+}
 
 
 def ensure_config_defaults(conn: sqlite3.Connection) -> None:
@@ -59,13 +67,15 @@ def ensure_config_defaults(conn: sqlite3.Connection) -> None:
             (chave, valor),
         )
 
-    # Preenche dados da empresa quando estiverem vazios
+    # Preenche dados da empresa quando estiverem vazios / placeholder
     for chave in _EMPRESA_KEYS:
         row = conn.execute(
             "SELECT valor FROM configuracoes WHERE chave = ?", (chave,)
         ).fetchone()
         atual = (row["valor"] if row else "") or ""
-        if not str(atual).strip():
+        if not str(atual).strip() or (
+            chave.startswith("empresa_cnpj") and str(atual).strip() in _CNPJ_PLACEHOLDERS
+        ):
             conn.execute(
                 "UPDATE configuracoes SET valor = ? WHERE chave = ?",
                 (DEFAULT_CONFIG[chave], chave),

@@ -14,7 +14,8 @@
     <h3>Empresa</h3>
     <div class="form-grid">
       <div><label>Nome</label><input name="empresa_nome" value="{{ cfg.empresa_nome or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
-      <div><label>CNPJ</label><input name="empresa_cnpj" value="{{ cfg.empresa_cnpj or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>CNPJ principal (pré-selecionado)</label><input name="empresa_cnpj" value="{{ cfg.empresa_cnpj or '51.832.369/0001-00' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>CNPJ alternativo</label><input name="empresa_cnpj_2" value="{{ cfg.empresa_cnpj_2 or '31.382.218/0001-81' }}" {% if not pode_editar %}readonly{% endif %} /></div>
       <div><label>Telefone</label><input name="empresa_telefone" value="{{ cfg.empresa_telefone or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
       <div><label>E-mail</label><input name="empresa_email" value="{{ cfg.empresa_email or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
     </div>
@@ -23,8 +24,8 @@
     <div class="form-grid">
       <div><label>Frete padrão</label><input name="frete_padrao" value="{{ cfg.frete_padrao or '0' }}" {% if not pode_editar %}readonly{% endif %} /></div>
       <div><label>Perda padrão</label><input name="perda_padrao" value="{{ cfg.perda_padrao or '0' }}" {% if not pode_editar %}readonly{% endif %} /></div>
-      <div><label>Lucro etiqueta</label><input name="lucro_etiqueta_padrao" value="{{ cfg.lucro_etiqueta_padrao or '0.30' }}" {% if not pode_editar %}readonly{% endif %} /></div>
-      <div><label>Lucro suprimentos</label><input name="lucro_suprimentos_padrao" value="{{ cfg.lucro_suprimentos_padrao or '0.20' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>Lucro etiqueta (%)</label><input name="lucro_etiqueta_padrao" value="{{ cfg.lucro_etiqueta_padrao or '30' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>Lucro suprimentos (%)</label><input name="lucro_suprimentos_padrao" value="{{ cfg.lucro_suprimentos_padrao or '20' }}" {% if not pode_editar %}readonly{% endif %} /></div>
       <div>
         <label>Difal padrão</label>
         {% if pode_editar %}

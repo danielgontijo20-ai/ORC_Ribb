@@ -45,7 +45,7 @@ from src.services.pdf_memoria import gerar_pdf_memoria
 from src.services.pdf_proposta import gerar_pdf_proposta
 from src.services.usuarios import usuario_tem_permissao
 from src.services.memoria_format import coletar_secoes_memoria, resumo_memoria
-from src.ui.formatters import brl, pct
+from src.ui.formatters import brl, fator_para_pct_input, pct, pct_input_para_fator
 from web.deps import get_current_user
 from web import proposta_session as ps
 from web.logos import logo_url
@@ -162,11 +162,24 @@ def _ctx_novo(request: Request, conn, user, *, form_vals: dict | None = None) ->
             "unidade_etiqueta": cfg.get("unidade_etiqueta", "Rol"),
             "unidade_suprimentos": cfg.get("unidade_suprimentos", "UN"),
             "perda": get_float(cfg, "perda_padrao", 0.0),
-            "lucro_etiqueta": get_float(cfg, "lucro_etiqueta_padrao", 0.30),
-            "lucro_suprimentos": get_float(cfg, "lucro_suprimentos_padrao", 0.20),
+            "lucro_etiqueta": fator_para_pct_input(
+                get_float(cfg, "lucro_etiqueta_padrao", 0.30)
+            ),
+            "lucro_suprimentos": fator_para_pct_input(
+                get_float(cfg, "lucro_suprimentos_padrao", 0.20)
+            ),
             "frete": get_float(cfg, "frete_padrao", 0.0),
             "difal": (cfg.get("difal_padrao") or "SIM").upper(),
         },
+        "empresa_cnpjs": [
+            cfg.get("empresa_cnpj") or "51.832.369/0001-00",
+            cfg.get("empresa_cnpj_2") or "31.382.218/0001-81",
+        ],
+        "empresa_cnpj_atual": (
+            proposta.get("empresa_cnpj")
+            or cfg.get("empresa_cnpj")
+            or "51.832.369/0001-00"
+        ),
         "cat_json": {
             "facas": {
                 f["tipo_faca"]: {
@@ -250,7 +263,9 @@ def _item_para_form_vals(item: dict) -> tuple[str, dict]:
             or "",
             "qtd_caixas": params.get("qtd_caixas") or params.get("Qtd caixas") or "",
             "perda": params.get("perda") if params.get("perda") is not None else params.get("Perda", ""),
-            "lucro": params.get("lucro") if params.get("lucro") is not None else params.get("Lucro", ""),
+            "lucro": fator_para_pct_input(
+                params.get("lucro") if params.get("lucro") is not None else params.get("Lucro", "")
+            ),
             "frete": params.get("frete")
             if params.get("frete") is not None
             else (params.get("Frete") if params.get("Frete") is not None else item.get("frete_item", "")),
@@ -276,7 +291,9 @@ def _item_para_form_vals(item: dict) -> tuple[str, dict]:
         "quantidade": params.get("quantidade")
         if params.get("quantidade") is not None
         else (params.get("Quantidade") if params.get("Quantidade") is not None else item.get("quantidade", "")),
-        "lucro": params.get("lucro") if params.get("lucro") is not None else params.get("Lucro", ""),
+        "lucro": fator_para_pct_input(
+            params.get("lucro") if params.get("lucro") is not None else params.get("Lucro", "")
+        ),
         "frete": params.get("frete")
         if params.get("frete") is not None
         else (params.get("Frete") if params.get("Frete") is not None else item.get("frete_item", "")),
@@ -518,6 +535,40 @@ def limpar_cliente(request: Request):
     return _redirect_novo()
 
 
+@router.post("/novo/empresa-cnpj")
+def selecionar_empresa_cnpj(request: Request, empresa_cnpj: str = Form(...)):
+    user, err = _require_user(request, "orcamento.criar")
+    if err:
+        return err
+    blocked = _block_readonly(request)
+    if blocked:
+        return blocked
+    cnpj = (empresa_cnpj or "").strip()
+    with connect() as conn:
+        cfg = carregar_config(conn)
+        opcoes = {
+            (cfg.get("empresa_cnpj") or "51.832.369/0001-00").strip(),
+            (cfg.get("empresa_cnpj_2") or "31.382.218/0001-81").strip(),
+        }
+        if cnpj not in opcoes:
+            ps.flash_err(request, "CNPJ da empresa inválido.")
+            return _redirect_novo()
+        proposta = ps.get_proposta(request, conn)
+        proposta["empresa_cnpj"] = cnpj
+        if proposta.get("id"):
+            ps.persistir(
+                request,
+                conn,
+                proposta,
+                status=proposta.get("status") or STATUS_RASCUNHO,
+            )
+        else:
+            ps.set_proposta(request, proposta)
+        ps.marcar_suja(request)
+        ps.flash_ok(request, f"CNPJ da empresa selecionado: {cnpj}")
+    return _redirect_novo()
+
+
 @router.post("/novo/condicoes")
 def salvar_condicoes(
     request: Request,
@@ -596,7 +647,7 @@ async def inserir_etiqueta(request: Request):
     qtd_total = ps.parse_float(form.get("qtd_total"))
     qtd_caixas = ps.parse_float(form.get("qtd_caixas"))
     perda = ps.parse_float(form.get("perda"))
-    lucro = ps.parse_float(form.get("lucro"))
+    lucro = pct_input_para_fator(form.get("lucro"))
     frete = ps.parse_float(form.get("frete"))
 
     form_vals = {
@@ -767,7 +818,7 @@ async def inserir_suprimento(request: Request):
     difal_sel = str(form.get("difal") or "").upper()
     custo = ps.parse_float(form.get("custo"))
     quantidade = ps.parse_float(form.get("quantidade"))
-    lucro = ps.parse_float(form.get("lucro"))
+    lucro = pct_input_para_fator(form.get("lucro"))
     frete = ps.parse_float(form.get("frete"))
     catalogo_sel = str(form.get("catalogo") or "")
 
@@ -998,7 +1049,12 @@ def pdf_da_sessao(request: Request):
             frete_exibicao = f"Taxa: {proposta.get('frete_taxa')}"
 
         pdf_bytes = gerar_pdf_proposta(
-            empresa=cfg,
+            empresa={
+                **cfg,
+                "empresa_cnpj": proposta.get("empresa_cnpj")
+                or cfg.get("empresa_cnpj")
+                or "51.832.369/0001-00",
+            },
             orcamento={
                 "numero": proposta.get("numero"),
                 "cliente_nome": cliente.get("nome"),
@@ -1255,7 +1311,12 @@ def pdf(request: Request, orcamento_id: int):
         frete_exibicao = f"Taxa: {prop.get('frete_taxa')}"
 
     pdf_bytes = gerar_pdf_proposta(
-        empresa=cfg,
+        empresa={
+            **cfg,
+            "empresa_cnpj": prop.get("empresa_cnpj")
+            or cfg.get("empresa_cnpj")
+            or "51.832.369/0001-00",
+        },
         orcamento={
             "numero": prop.get("numero"),
             "cliente_nome": cliente.get("nome"),

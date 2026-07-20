@@ -54,6 +54,7 @@ def nova_proposta(cfg: dict[str, str]) -> dict:
         "orcamentista_cargo": cfg.get("orcamentista_cargo", ""),
         "orcamentista_telefone": cfg.get("orcamentista_telefone", ""),
         "orcamentista_email": cfg.get("orcamentista_email", ""),
+        "empresa_cnpj": cfg.get("empresa_cnpj") or "51.832.369/0001-00",
         "status": None,
     }
 
@@ -77,6 +78,7 @@ def _draft_leve(proposta: dict) -> dict:
         "orcamentista_cargo": proposta.get("orcamentista_cargo") or "",
         "orcamentista_telefone": proposta.get("orcamentista_telefone") or "",
         "orcamentista_email": proposta.get("orcamentista_email") or "",
+        "empresa_cnpj": proposta.get("empresa_cnpj") or "",
         "status": None,
     }
 
@@ -86,11 +88,19 @@ def get_proposta(request: Request, conn) -> dict:
     if pid:
         orc = obter_orcamento(conn, int(pid))
         if orc:
-            return orcamento_para_proposta(orc)
+            proposta = orcamento_para_proposta(orc)
+            if not (proposta.get("empresa_cnpj") or "").strip():
+                cfg = carregar_config(conn)
+                proposta["empresa_cnpj"] = cfg.get("empresa_cnpj") or "51.832.369/0001-00"
+            return proposta
         request.session.pop(SESSION_PROPOSTA_ID, None)
 
     draft = request.session.get(SESSION_DRAFT)
     if isinstance(draft, dict):
+        if not (draft.get("empresa_cnpj") or "").strip():
+            cfg = carregar_config(conn)
+            draft["empresa_cnpj"] = cfg.get("empresa_cnpj") or "51.832.369/0001-00"
+            request.session[SESSION_DRAFT] = draft
         return draft
 
     cfg = carregar_config(conn)

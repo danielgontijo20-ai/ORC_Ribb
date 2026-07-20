@@ -125,6 +125,10 @@ def salvar_orcamento(
         if "tipo" in cols:
             sets.insert(5, "tipo=?")
             vals.insert(5, tipo_legado)
+        if "empresa_cnpj" in cols:
+            # inserir antes de atualizado_em
+            sets.insert(-1, "empresa_cnpj=?")
+            vals.insert(-1, proposta.get("empresa_cnpj") or None)
         vals.append(orc_id)
         conn.execute(
             f"UPDATE orcamentos SET {', '.join(sets)} WHERE id=?",
@@ -183,6 +187,10 @@ def salvar_orcamento(
         if "tipo" in cols:
             fields.insert(5, "tipo")
             vals.insert(5, tipo_legado)
+        if "empresa_cnpj" in cols:
+            # antes de criado_em / atualizado_em
+            fields.insert(-2, "empresa_cnpj")
+            vals.insert(-2, proposta.get("empresa_cnpj") or None)
         placeholders = ", ".join("?" for _ in fields)
         cur = conn.execute(
             f"INSERT INTO orcamentos ({', '.join(fields)}) VALUES ({placeholders})",
@@ -421,6 +429,7 @@ def orcamento_para_proposta(orc: dict) -> dict:
         "orcamentista_cargo": orc.get("orcamentista_cargo") or "",
         "orcamentista_telefone": orc.get("orcamentista_telefone") or "",
         "orcamentista_email": orc.get("orcamentista_email") or "",
+        "empresa_cnpj": orc.get("empresa_cnpj") or "",
         "status": orc.get("status"),
     }
 

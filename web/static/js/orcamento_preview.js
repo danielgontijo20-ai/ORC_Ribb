@@ -49,6 +49,7 @@
     var frete = num(form.querySelector('[name="frete"]'));
     if (perda == null) perda = 0;
     if (lucro == null) lucro = 0;
+    else lucro = lucro / 100;
     if (frete == null) frete = 0;
 
     var faltando = [];
@@ -122,6 +123,7 @@
     var lucro = num(form.querySelector('[name="lucro"]'));
     var frete = num(form.querySelector('[name="frete"]'));
     if (lucro == null) lucro = 0;
+    else lucro = lucro / 100;
     if (frete == null) frete = 0;
 
     var faltando = [];

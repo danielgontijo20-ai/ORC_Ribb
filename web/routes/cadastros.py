@@ -28,7 +28,7 @@ from src.services.clientes import buscar_clientes, contar_clientes, obter_client
 from src.services.configuracoes import carregar_config, salvar_config
 from src.services.custo_log import listar_log, registrar_custo
 from src.services.usuarios import usuario_tem_permissao
-from src.ui.formatters import brl
+from src.ui.formatters import brl, fator_para_pct_input, pct_input_para_fator
 from web.deps import get_current_user
 from web.logos import logo_url, save_upload
 from web.proposta_session import parse_float
@@ -39,6 +39,7 @@ router = APIRouter(prefix="/cadastros")
 _NATIVOS_KEYS = (
     "empresa_nome",
     "empresa_cnpj",
+    "empresa_cnpj_2",
     "empresa_telefone",
     "empresa_email",
     "frete_padrao",
@@ -124,10 +125,17 @@ def nativos_get(request: Request):
         return err
     with connect() as conn:
         cfg = carregar_config(conn)
+    cfg_view = dict(cfg)
+    cfg_view["lucro_etiqueta_padrao"] = fator_para_pct_input(
+        cfg.get("lucro_etiqueta_padrao") or "0.30"
+    )
+    cfg_view["lucro_suprimentos_padrao"] = fator_para_pct_input(
+        cfg.get("lucro_suprimentos_padrao") or "0.20"
+    )
     ctx = _ctx_base(request, user)
     ctx.update(
         {
-            "cfg": cfg,
+            "cfg": cfg_view,
             "logo_master_url": logo_url(cfg.get("logo_master")),
             "logo_cabecalho_url": logo_url(cfg.get("logo_cabecalho")),
             "logo_rodape_url": logo_url(cfg.get("logo_rodape")),
@@ -143,6 +151,11 @@ async def nativos_post(request: Request):
         return err
     form = await request.form()
     dados = {k: str(form.get(k) or "").strip() for k in _NATIVOS_KEYS}
+    # Lucro nativo é digitado em % (30) e gravado como fator (0.30)
+    for chave in ("lucro_etiqueta_padrao", "lucro_suprimentos_padrao"):
+        fator = pct_input_para_fator(dados.get(chave))
+        if fator is not None:
+            dados[chave] = str(fator)
     with connect() as conn:
         cfg = carregar_config(conn)
         logo_master = cfg.get("logo_master") or ""

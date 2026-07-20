@@ -56,6 +56,7 @@ def migrate(db_path=DB_PATH) -> None:
             ("orcamentista_telefone", "TEXT"),
             ("orcamentista_email", "TEXT"),
             ("frete_total", "REAL DEFAULT 0"),
+            ("empresa_cnpj", "TEXT"),
         ]:
             _add_column_if_missing(conn, "orcamentos", col, decl)
 
