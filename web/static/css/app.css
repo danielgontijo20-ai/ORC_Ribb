@@ -101,6 +101,24 @@ a:hover { text-decoration: underline; color: var(--orc-primary); }
   max-width: 420px;
   margin: 4rem auto;
 }
+.login-brand {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 0.85rem;
+  background: #000000;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  border: 1px solid #1A1A1A;
+}
+.login-logo {
+  display: block;
+  width: min(100%, 340px);
+  height: auto;
+}
+.login-sub {
+  text-align: center;
+  margin: 0 0 0.35rem;
+}
 
 label {
   display: block;
