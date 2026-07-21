@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}Novo Orçamento — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="topbar">
+  <h1 class="brand">Novo Orçamento</h1>
+  <div class="userbox"><a href="/menu">← Menu</a></div>
+</div>
+<div class="card">
+  <div class="ok">
+    Fase 1 da web: login, menu, histórico, cadastros (consulta) e PDF já estão ativos.
+  </div>
+  <p>
+    A tela completa de <strong>formação de orçamento</strong> (etiqueta/suprimento)
+    está na <strong>fase 2</strong> da adaptação web.
+  </p>
+  <p class="muted">
+    Enquanto isso, você pode continuar elaborando orçamentos na versão local Streamlit
+    (<code>versao01</code>) e consultar/aprovar/gerar PDF aqui na web.
+  </p>
+  <div class="btn-row">
+    <a class="btn btn-primary" href="/orcamentos">Ir para históricos</a>
+    <a class="btn" href="/menu">Voltar ao menu</a>
+  </div>
+</div>
+{% endblock %}
