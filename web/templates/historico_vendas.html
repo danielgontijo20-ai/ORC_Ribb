@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}Histórico de Vendas — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="topbar">
+  <h1 class="brand">Histórico de Vendas</h1>
+  <div class="userbox"><a class="btn btn-ghost" href="/menu">← Menu</a></div>
+</div>
+
+<div class="card surface">
+  <p class="lead">
+    Use <strong>Pesquisar cliente</strong> para filtrar, ou <strong>Buscar vendas</strong> sem cliente
+    para listar todas (mais recente → mais antiga), agrupadas por nota fiscal.
+  </p>
+
+  {% if cli %}
+  <div class="ok">Cliente selecionado: <strong>{{ cli.nome }}</strong> | {{ cli.cnpj_cpf or '-' }}</div>
+  {% else %}
+  <div class="info-banner">Nenhum cliente selecionado — a busca listará todas as vendas.</div>
+  {% endif %}
+
+  <div class="btn-row">
+    <form method="post" action="/historico-vendas/dialog">
+      <input type="hidden" name="dialog" value="cliente" />
+      <button class="btn btn-primary" type="submit">Pesquisar cliente</button>
+    </form>
+    <form method="post" action="/historico-vendas/cliente/limpar">
+      <button class="btn" type="submit" {% if not cli %}disabled{% endif %}>Limpar cliente</button>
+    </form>
+    <form method="post" action="/historico-vendas/buscar">
+      <button class="btn btn-primary" type="submit">Buscar vendas</button>
+    </form>
+  </div>
+</div>
+
+{% if not buscou %}
+<div class="card surface muted-card">
+  <p class="muted">Nenhuma busca realizada ainda.</p>
+</div>
+{% else %}
+<div class="card surface">
+  <div class="section-head">
+    <h2>Resultado — {{ label }}</h2>
+    <span class="badge">{{ (notas or [])|length }} nota(s)</span>
+  </div>
+
+  {% if not notas %}
+  <p class="error" style="margin-top:0.75rem">Nenhuma venda encontrada.</p>
+  {% else %}
+  <div class="nf-list">
+    {% for nota in notas %}
+    <details class="nf-card" {% if loop.first %}open{% endif %}>
+      <summary>
+        <span class="nf-title">NF {{ nota.numero_nota }}</span>
+        <span class="nf-meta">{{ nota.data_emissao or '-' }}</span>
+        <span class="nf-meta">{{ nota.nome_cliente or '-' }}</span>
+        <span class="nf-total">{{ brl(nota.valor_nota) }}</span>
+      </summary>
+      <div class="nf-body">
+        <p class="muted">CNPJ: <strong>{{ nota.cnpj_cpf or '-' }}</strong> · {{ (nota.itens or [])|length }} item(ns)</p>
+        <div class="table-wrap">
+          <table class="data">
+            <thead>
+              <tr>
+                <th>Código</th>
+                <th>Descrição</th>
+                <th>Und</th>
+                <th>Qtd</th>
+                <th>Valor unit.</th>
+                <th>Valor total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for it in nota.itens %}
+              <tr>
+                <td>{{ it.codigo_item or '-' }}</td>
+                <td>{{ it.descricao_item or '-' }}</td>
+                <td>{{ it.unidade or '-' }}</td>
+                <td>{{ '%.2f'|format(it.quantidade or 0) }}</td>
+                <td>{{ brl(it.valor_unitario) }}</td>
+                <td>{{ brl(it.valor_total) }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="6">Sem itens.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="btn-row">
+          <a class="btn btn-sm btn-primary"
+             href="/historico-vendas/nota/{{ nota.numero_nota }}{% if nota.cliente_id %}?cliente_id={{ nota.cliente_id }}{% endif %}">
+            Abrir venda
+          </a>
+        </div>
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+  {% endif %}
+</div>
+{% endif %}
+
+{% if dialog == 'cliente' %}
+<div class="modal-backdrop">
+  <div class="modal card">
+    <div class="topbar" style="margin-bottom:0.5rem">
+      <h3 style="margin:0">Selecionar cliente</h3>
+      <form method="post" action="/historico-vendas/dialog">
+        <input type="hidden" name="dialog" value="fechar" />
+        <button class="btn btn-ghost" type="submit">Fechar</button>
+      </form>
+    </div>
+    <form method="get" action="/historico-vendas" class="filters">
+      <div>
+        <label>Pesquisar por CNPJ ou Nome</label>
+        <input name="termo_cli" value="{{ termo_cli }}" placeholder="Digite para filtrar" autofocus />
+      </div>
+      <div style="align-self:end"><button class="btn btn-primary" type="submit">Buscar</button></div>
+    </form>
+    <p class="muted">{{ total_clientes }} cliente(s) encontrado(s) — clique em Usar para selecionar</p>
+    <div class="table-wrap" style="max-height:340px;overflow:auto">
+      <table class="data">
+        <thead><tr><th>CNPJ</th><th>Nome</th><th>UF</th><th></th></tr></thead>
+        <tbody>
+          {% for c in clientes %}
+          <tr>
+            <td>{{ c.cnpj_cpf }}</td>
+            <td>{{ c.nome }}</td>
+            <td>{{ c.uf or '-' }}</td>
+            <td>
+              <form method="post" action="/historico-vendas/cliente/selecionar">
+                <input type="hidden" name="cliente_id" value="{{ c.id }}" />
+                <button class="btn btn-sm btn-primary" type="submit">Usar</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="4">Nenhum cliente encontrado.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

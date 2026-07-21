@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}Valores Nativos — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="topbar">
+  <h1 class="brand">Valores Nativos</h1>
+  <div class="userbox"><a href="/cadastros">← Cadastros</a></div>
+</div>
+
+{% if flash_ok %}<div class="ok">{{ flash_ok }}</div>{% endif %}
+{% if flash_err %}<div class="error">{{ flash_err }}</div>{% endif %}
+
+<div class="card surface">
+  <form method="post" action="/cadastros/nativos" enctype="multipart/form-data">
+    <h3>Empresa</h3>
+    <div class="form-grid">
+      <div><label>Nome</label><input name="empresa_nome" value="{{ cfg.empresa_nome or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>CNPJ</label><input name="empresa_cnpj" value="{{ cfg.empresa_cnpj or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>Telefone</label><input name="empresa_telefone" value="{{ cfg.empresa_telefone or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>E-mail</label><input name="empresa_email" value="{{ cfg.empresa_email or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+    </div>
+
+    <h3 style="margin-top:1.2rem">Cálculo (padrões do formulário)</h3>
+    <div class="form-grid">
+      <div><label>Frete padrão</label><input name="frete_padrao" value="{{ cfg.frete_padrao or '0' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>Perda padrão</label><input name="perda_padrao" value="{{ cfg.perda_padrao or '0' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>Lucro etiqueta</label><input name="lucro_etiqueta_padrao" value="{{ cfg.lucro_etiqueta_padrao or '0.30' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>Lucro suprimentos</label><input name="lucro_suprimentos_padrao" value="{{ cfg.lucro_suprimentos_padrao or '0.20' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div>
+        <label>Difal padrão</label>
+        {% if pode_editar %}
+        <select name="difal_padrao">
+          <option value="SIM" {% if (cfg.difal_padrao or 'SIM')=='SIM' %}selected{% endif %}>SIM</option>
+          <option value="NÃO" {% if (cfg.difal_padrao or '')=='NÃO' %}selected{% endif %}>NÃO</option>
+        </select>
+        {% else %}
+        <input value="{{ cfg.difal_padrao or 'SIM' }}" readonly />
+        {% endif %}
+      </div>
+      <div><label>Unidade etiqueta</label><input name="unidade_etiqueta" value="{{ cfg.unidade_etiqueta or 'Rol' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>Unidade suprimentos</label><input name="unidade_suprimentos" value="{{ cfg.unidade_suprimentos or 'UN' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+    </div>
+
+    <h3 style="margin-top:1.2rem">Condições gerais padrão</h3>
+    <div class="form-grid">
+      <div><label>Validade</label><input name="validade_proposta" value="{{ cfg.validade_proposta or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>Prazo pagamento</label><input name="prazo_pagamento" value="{{ cfg.prazo_pagamento or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>Prazo entrega</label><input name="prazo_entrega" value="{{ cfg.prazo_entrega or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div>
+        <label>Frete tipo</label>
+        {% if pode_editar %}
+        <select name="frete_tipo">
+          {% for f in ['CIF','FOB','Taxa'] %}
+          <option value="{{ f }}" {% if cfg.frete_tipo==f %}selected{% endif %}>{{ f }}</option>
+          {% endfor %}
+        </select>
+        {% else %}
+        <input value="{{ cfg.frete_tipo or 'CIF' }}" readonly />
+        {% endif %}
+      </div>
+      <div class="span-2"><label>Impostos</label><input name="impostos" value="{{ cfg.impostos or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div class="span-2"><label>Informações adicionais</label><textarea name="informacoes_adicionais" rows="3" {% if not pode_editar %}readonly{% endif %}>{{ cfg.informacoes_adicionais or '' }}</textarea></div>
+    </div>
+
+    <h3 style="margin-top:1.2rem">Orçamentista</h3>
+    <div class="form-grid">
+      <div><label>Nome</label><input name="orcamentista_nome" value="{{ cfg.orcamentista_nome or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>Cargo</label><input name="orcamentista_cargo" value="{{ cfg.orcamentista_cargo or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>Telefone</label><input name="orcamentista_telefone" value="{{ cfg.orcamentista_telefone or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>E-mail</label><input name="orcamentista_email" value="{{ cfg.orcamentista_email or '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+    </div>
+
+    <h3 style="margin-top:1.2rem">Logos (upload)</h3>
+    <p class="muted">Sugestão: Master 1200×330 px | Cabeçalho/Rodapé 240×124 px (ou 480×250 px)</p>
+    <div class="logo-previews">
+      {% if logo_master_url %}<div><span class="muted">Master atual</span><img src="{{ logo_master_url }}" alt="master" /></div>{% endif %}
+      {% if logo_cabecalho_url %}<div><span class="muted">Cabeçalho atual</span><img src="{{ logo_cabecalho_url }}" alt="cabecalho" /></div>{% endif %}
+      {% if logo_rodape_url %}<div><span class="muted">Rodapé atual</span><img src="{{ logo_rodape_url }}" alt="rodape" /></div>{% endif %}
+    </div>
+    {% if pode_editar %}
+    <div class="form-grid">
+      <div><label>Logo master</label><input type="file" name="logo_master" accept=".png,.jpg,.jpeg,.webp" /></div>
+      <div><label>Logo cabeçalho</label><input type="file" name="logo_cabecalho" accept=".png,.jpg,.jpeg,.webp" /></div>
+      <div><label>Logo rodapé</label><input type="file" name="logo_rodape" accept=".png,.jpg,.jpeg,.webp" /></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" type="submit">Salvar valores nativos</button>
+    </div>
+    {% endif %}
+  </form>
+</div>
+{% endblock %}
