@@ -55,6 +55,13 @@ from web.templating import render
 
 router = APIRouter(prefix="/orcamentos")
 
+# Rascunho e gerado podem ser editados; aprovado/reprovado ficam travados.
+_STATUS_EDITAVEIS = frozenset({"rascunho", "gerado", "finalizado", ""})
+
+
+def _status_editavel(status: str | None) -> bool:
+    return (status or "").strip().lower() in _STATUS_EDITAVEIS
+
 
 def _require_user(request: Request, perm: str):
     user = get_current_user(request)
@@ -1150,8 +1157,8 @@ def continuar_rascunho(request: Request, orcamento_id: int = Form(...)):
             ps.flash_err(request, "Orçamento não encontrado.")
             return RedirectResponse("/orcamentos", status_code=303)
         status = (orc.get("status") or "").lower()
-        if status not in ("rascunho", ""):
-            # gerado/aprovado: só consulta
+        if not _status_editavel(status):
+            # aprovado/reprovado: só consulta
             ps.carregar_proposta_do_banco(
                 request, conn, orcamento_id, readonly=True
             )
@@ -1162,10 +1169,16 @@ def continuar_rascunho(request: Request, orcamento_id: int = Form(...)):
             )
             return _redirect_novo()
         ps.carregar_proposta_do_banco(request, conn, orcamento_id, readonly=False)
-        ps.flash_ok(
-            request,
-            f"Rascunho {orc.get('numero') or orcamento_id} carregado para edição.",
-        )
+        if status in ("gerado", "finalizado"):
+            ps.flash_ok(
+                request,
+                f"Orçamento {orc.get('numero') or orcamento_id} carregado para edição.",
+            )
+        else:
+            ps.flash_ok(
+                request,
+                f"Rascunho {orc.get('numero') or orcamento_id} carregado para edição.",
+            )
     return _redirect_novo()
 
 
@@ -1175,16 +1188,31 @@ def consultar(request: Request, orcamento_id: int):
     if err:
         return err
     with connect() as conn:
+        orc = obter_orcamento(conn, orcamento_id)
+        if not orc:
+            return HTMLResponse("Orçamento não encontrado.", status_code=404)
+        status = (orc.get("status") or "").lower()
+        # Gerado/rascunho: edita como rascunho se tiver permissão de criar
+        pode_editar = usuario_tem_permissao(user, "orcamento.criar") and _status_editavel(
+            status
+        )
         proposta = ps.carregar_proposta_do_banco(
-            request, conn, orcamento_id, readonly=True
+            request, conn, orcamento_id, readonly=not pode_editar
         )
         if not proposta:
             return HTMLResponse("Orçamento não encontrado.", status_code=404)
-        ps.flash_ok(
-            request,
-            f"Orçamento {proposta.get('numero') or orcamento_id} aberto em modo consulta "
-            f"(status: {label_status(proposta.get('status'))}).",
-        )
+        if pode_editar:
+            ps.flash_ok(
+                request,
+                f"Orçamento {proposta.get('numero') or orcamento_id} aberto para edição "
+                f"(status: {label_status(proposta.get('status'))}).",
+            )
+        else:
+            ps.flash_ok(
+                request,
+                f"Orçamento {proposta.get('numero') or orcamento_id} aberto em modo consulta "
+                f"(status: {label_status(proposta.get('status'))}).",
+            )
     return _redirect_novo()
 
 
@@ -1299,6 +1327,8 @@ def detalhe(request: Request, orcamento_id: int):
             "pode_pdf": usuario_tem_permissao(user, "orcamento.pdf"),
             "pode_consultar": True,
             "pode_clonar": usuario_tem_permissao(user, "orcamento.criar"),
+            "pode_editar": usuario_tem_permissao(user, "orcamento.criar")
+            and _status_editavel(status),
             "pode_editar_rascunho": usuario_tem_permissao(user, "orcamento.criar")
             and status == "rascunho",
             "pode_memoria": True,

@@ -21,15 +21,16 @@
   </p>
 
   <div class="btn-row">
-    {% if pode_consultar %}
-    <form method="post" action="/orcamentos/{{ orc.id }}/consultar" style="margin:0">
-      <button class="btn btn-primary" type="submit">Consultar</button>
-    </form>
-    {% endif %}
-    {% if pode_editar_rascunho %}
+    {% if pode_editar %}
     <form method="post" action="/orcamentos/novo/continuar" style="margin:0">
       <input type="hidden" name="orcamento_id" value="{{ orc.id }}" />
-      <button class="btn btn-primary" type="submit">Continuar rascunho</button>
+      <button class="btn btn-primary" type="submit">
+        {% if orc.status == 'rascunho' %}Continuar rascunho{% else %}Editar orçamento{% endif %}
+      </button>
+    </form>
+    {% elif pode_consultar %}
+    <form method="post" action="/orcamentos/{{ orc.id }}/consultar" style="margin:0">
+      <button class="btn btn-primary" type="submit">Consultar</button>
     </form>
     {% endif %}
     {% if pode_memoria %}
@@ -57,7 +58,11 @@
     {% endif %}
   </div>
   <p class="muted" style="margin-top:0.75rem">
-    Orçamentos gerados/aprovados/reprovados não são editáveis. Use <strong>Clonar</strong> para criar uma cópia editável.
+    {% if pode_editar %}
+    Rascunhos e orçamentos gerados podem ser editados. Ao terminar, use <strong>Salvar orçamento</strong>.
+    {% else %}
+    Orçamentos aprovados/reprovados não são editáveis. Use <strong>Clonar</strong> para criar uma cópia editável.
+    {% endif %}
   </p>
 </div>
 
