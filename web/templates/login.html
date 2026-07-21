@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Login — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="card login-card">
+  <h1 class="brand">{{ app_name }}</h1>
+  <p class="muted">Acesso web com login e permissões por usuário.</p>
+  {% if erro %}
+  <div class="error">{{ erro }}</div>
+  {% endif %}
+  <form method="post" action="/login">
+    <label for="email">E-mail</label>
+    <input id="email" name="email" type="email" required placeholder="admin@ribbontech.com" />
+    <label for="senha">Senha</label>
+    <input id="senha" name="senha" type="password" required placeholder="••••••••" />
+    <button class="btn btn-primary btn-block" type="submit">Entrar</button>
+  </form>
+  <p class="muted" style="margin-top:1rem">
+    Usuário inicial: <strong>admin@ribbontech.com</strong> / <strong>admin123</strong>
+  </p>
+</div>
+{% endblock %}
