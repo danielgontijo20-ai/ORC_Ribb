@@ -1033,6 +1033,15 @@ def salvar_formacao(request: Request):
             f"Orçamento {proposta.get('numero')} salvo com status "
             f"{label_status(STATUS_GERADO)}. Agora você pode gerar o PDF.",
         )
+    # Backup rotativo fora da conexão (evita lock): latest + últimos N
+    try:
+        from src.services.db_backup import backup_on_salvar_orcamento
+
+        backup_on_salvar_orcamento()
+    except Exception:
+        import logging
+
+        logging.exception("Falha ao gerar backup após salvar orçamento")
     return _redirect_novo()
 
 

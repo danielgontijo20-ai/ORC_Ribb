@@ -13,6 +13,7 @@ venv/
 # Banco e uploads locais/produção — não versionar
 data/database/*.db
 data/database/*.db-*
+data/database/backups/
 data/logos/*
 !data/logos/.gitkeep
 !data/database/.gitkeep
