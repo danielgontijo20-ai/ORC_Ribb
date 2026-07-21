@@ -105,11 +105,10 @@ a:hover { text-decoration: underline; color: var(--orc-primary); }
   display: flex;
   justify-content: center;
   margin: 0 0 0.85rem;
-  background: #000000;
-  border-radius: 10px;
-  padding: 0.55rem 0.75rem;
-  border: 1px solid #1A1A1A;
-  overflow: hidden;
+  background: transparent;
+  border: none;
+  padding: 0;
+  overflow: visible;
 }
 .login-logo {
   display: block;
