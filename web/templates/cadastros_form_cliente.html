@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="topbar">
+  <h1 class="brand">{{ titulo }}</h1>
+  <div class="userbox"><a class="btn btn-ghost" href="/cadastros/clientes">← Lista</a></div>
+</div>
+{% if flash_err %}<div class="error">{{ flash_err }}</div>{% endif %}
+<div class="card">
+  <form method="post" action="/cadastros/clientes/salvar">
+    {% if item %}<input type="hidden" name="id" value="{{ item.id }}" />{% endif %}
+    <div class="form-grid">
+      <div class="span-2"><label>Nome</label><input name="nome" required value="{{ item.nome if item else '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>CNPJ/CPF</label><input name="cnpj_cpf" required value="{{ item.cnpj_cpf if item else '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+      <div><label>UF</label><input name="uf" maxlength="2" value="{{ item.uf if item and item.uf else '' }}" {% if not pode_editar %}readonly{% endif %} /></div>
+    </div>
+    {% if pode_editar %}
+    <div class="btn-row">
+      <button class="btn btn-primary" type="submit">Salvar</button>
+      {% if item %}
+      <button class="btn btn-danger" type="submit" formaction="/cadastros/clientes/{{ item.id }}/excluir" formmethod="post" formnovalidate onclick="return confirm('Excluir este cliente?')">Excluir</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </form>
+</div>
+{% endblock %}

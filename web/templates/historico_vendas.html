@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Histórico de Vendas — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="topbar">
+  <h1 class="brand">Histórico de Vendas</h1>
+  <div class="userbox"><a href="/menu">← Menu</a></div>
+</div>
+<div class="card">
+  <p class="muted">Listagem das notas mais recentes{% if cliente_id %} (cliente {{ cliente_id }}){% endif %}.</p>
+  {% for nota in notas %}
+  <div class="card" style="box-shadow:none;margin-top:0.75rem">
+    <strong>NF {{ nota.numero_nota }}</strong> —
+    {{ nota.data_emissao or '-' }} —
+    {{ nota.nome_cliente or '-' }} —
+    R$ {{ '%.2f'|format(nota.valor_nota or 0) }}
+    <p class="muted">Itens: {{ (nota.itens or [])|length }}</p>
+  </div>
+  {% else %}
+  <p>Nenhuma venda encontrada.</p>
+  {% endfor %}
+</div>
+{% endblock %}
