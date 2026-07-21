@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="topbar">
+  <h1 class="brand">{{ titulo }}</h1>
+  <div class="userbox"><a class="btn btn-ghost" href="/cadastros">← Cadastros</a></div>
+</div>
+
+{% if flash_ok %}<div class="ok">{{ flash_ok }}</div>{% endif %}
+{% if flash_err %}<div class="error">{{ flash_err }}</div>{% endif %}
+
+<div class="card">
+  <div class="btn-row" style="margin-top:0;margin-bottom:0.85rem">
+    {% if pode_editar %}
+    <a class="btn btn-primary" href="/cadastros/{{ slug }}/novo">+ Novo</a>
+    {% endif %}
+    {% if slug == 'clientes' %}
+    <form method="get" action="/cadastros/clientes" class="inline-search">
+      <input name="termo" value="{{ termo }}" placeholder="Buscar nome ou CNPJ" />
+      <button class="btn btn-primary" type="submit">Buscar</button>
+    </form>
+    {% endif %}
+  </div>
+  <p class="muted">{{ total }} registro(s)</p>
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr>
+          {% for key, label in colunas %}
+          <th>{{ label }}</th>
+          {% endfor %}
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in linhas %}
+        <tr>
+          {% for key, label in colunas %}
+          <td>{{ row[key] }}</td>
+          {% endfor %}
+          <td class="row-actions">
+            <a class="btn btn-sm btn-primary" href="/cadastros/{{ slug }}/{{ row.id }}">
+              {% if pode_editar %}Editar{% else %}Ver{% endif %}
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="{{ colunas|length + 1 }}">Nenhum registro.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

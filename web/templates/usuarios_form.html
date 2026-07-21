@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block title %}{{ titulo }} — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="topbar">
+  <h1 class="brand">{{ titulo }}</h1>
+  <div class="userbox"><a class="btn btn-ghost" href="/usuarios">← Lista</a></div>
+</div>
+{% if flash_err %}<div class="error">{{ flash_err }}</div>{% endif %}
+<div class="card">
+  <form method="post" action="/usuarios/salvar">
+    {% if alvo %}<input type="hidden" name="usuario_id" value="{{ alvo.id }}" />{% endif %}
+    <div class="form-grid">
+      <div><label>Nome</label><input name="nome" required value="{{ alvo.nome if alvo else '' }}" /></div>
+      <div><label>E-mail</label><input name="email" type="email" required value="{{ alvo.email if alvo else '' }}" /></div>
+      <div>
+        <label>Papel</label>
+        <select name="papel_id" required>
+          {% for p in papeis %}
+          <option value="{{ p.id }}" {% if alvo and alvo.papel_id==p.id %}selected{% endif %}>{{ p.nome }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label>Ativo</label>
+        <select name="ativo">
+          <option value="1" {% if not alvo or alvo.ativo %}selected{% endif %}>Sim</option>
+          <option value="0" {% if alvo and not alvo.ativo %}selected{% endif %}>Não</option>
+        </select>
+      </div>
+      <div class="span-2">
+        <label>{% if alvo %}Nova senha (deixe em branco para manter){% else %}Senha{% endif %}</label>
+        <input name="senha" type="password" {% if not alvo %}required{% endif %} autocomplete="new-password" />
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" type="submit">Salvar usuário</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
