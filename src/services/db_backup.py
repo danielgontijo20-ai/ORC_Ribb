@@ -34,10 +34,11 @@ def backup_dir() -> Path:
 
 
 def _safe_checkpoint(db_path: Path) -> None:
-    """Tenta consolidar WAL no arquivo principal antes de copiar."""
+    """Checkpoint leve (PASSIVE) — não trava outros requests como TRUNCATE."""
     try:
-        with sqlite3.connect(str(db_path), timeout=30) as conn:
-            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        with sqlite3.connect(str(db_path), timeout=5) as conn:
+            conn.execute("PRAGMA busy_timeout=5000")
+            conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
     except sqlite3.Error as exc:
         log.warning("Backup: checkpoint WAL falhou (%s); copiando mesmo assim.", exc)
 
@@ -49,27 +50,32 @@ def backup_on_salvar_orcamento(
 ) -> Path | None:
     """
     Cria backup rotativo. Retorna o caminho do backup com timestamp, ou None.
+    Nunca propaga exceção para a rota de salvar.
     """
-    src = Path(db_path)
-    if not src.is_file():
-        log.error("Backup: banco não encontrado em %s", src)
+    try:
+        src = Path(db_path)
+        if not src.is_file():
+            log.error("Backup: banco não encontrado em %s", src)
+            return None
+
+        dest_dir = backup_dir()
+        dest_dir.mkdir(parents=True, exist_ok=True)
+
+        _safe_checkpoint(src)
+
+        stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        stamped = dest_dir / f"orc_ribb.db.bak-{stamp}"
+        latest = dest_dir / LATEST_NAME
+
+        shutil.copy2(src, stamped)
+        shutil.copy2(src, latest)
+
+        _prune_old_backups(dest_dir, keep_last=max(1, int(keep_last)))
+        log.info("Backup salvo: %s (latest + últimos %s)", stamped.name, keep_last)
+        return stamped
+    except Exception:
+        log.exception("Backup: falha inesperada (ignorada para não derrubar o save)")
         return None
-
-    dest_dir = backup_dir()
-    dest_dir.mkdir(parents=True, exist_ok=True)
-
-    _safe_checkpoint(src)
-
-    stamp = datetime.now().strftime("%Y-%m-%d-%H%M%S")
-    stamped = dest_dir / f"orc_ribb.db.bak-{stamp}"
-    latest = dest_dir / LATEST_NAME
-
-    shutil.copy2(src, stamped)
-    shutil.copy2(src, latest)
-
-    _prune_old_backups(dest_dir, keep_last=max(1, int(keep_last)))
-    log.info("Backup salvo: %s (latest + últimos %s)", stamped.name, keep_last)
-    return stamped
 
 
 def _prune_old_backups(dest_dir: Path, *, keep_last: int) -> None:

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+import sqlite3
 from typing import Callable
 
 from fastapi import Depends, HTTPException, Request, status
@@ -10,6 +12,8 @@ from fastapi.responses import RedirectResponse
 from src.db.database import connect
 from src.services.usuarios import obter_usuario, usuario_tem_permissao
 
+log = logging.getLogger(__name__)
+
 
 def get_db():
     with connect() as conn:
@@ -17,11 +21,24 @@ def get_db():
 
 
 def get_current_user(request: Request) -> dict | None:
+    """Nunca propaga erro de banco — se o SQLite falhar, trata como deslogado."""
     uid = request.session.get("user_id")
     if not uid:
         return None
-    with connect() as conn:
-        return obter_usuario(conn, int(uid))
+    try:
+        with connect() as conn:
+            return obter_usuario(conn, int(uid))
+    except (sqlite3.Error, OSError) as exc:
+        log.exception(
+            "get_current_user: falha ao ler usuário %s (%s) — forçando logout lógico",
+            uid,
+            exc,
+        )
+        try:
+            request.session.clear()
+        except Exception:
+            pass
+        return None
 
 
 def require_login(request: Request) -> dict:
