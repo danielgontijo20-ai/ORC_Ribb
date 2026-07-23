@@ -36,15 +36,13 @@ BASE_DIR = Path(__file__).resolve().parent
 log = logging.getLogger(__name__)
 
 _DB_FIX_HINT = (
-    "Banco temporariamente indisponível. Na VPS execute: "
-    "cd /var/www/ORC_Ribb && "
-    "systemctl stop orc-ribb; "
-    "id=$(systemctl show -p User --value orc-ribb); id=${id:-root}; "
-    "mkdir -p data/database data/logos data/database/backups && "
-    "chown -R \"$id:$id\" data && "
-    "chmod 755 data data/database data/logos && "
-    "chmod 664 data/database/orc_ribb.db "
-    "data/database/orc_ribb.db-wal data/database/orc_ribb.db-shm 2>/dev/null; "
+    "Banco temporariamente indisponível. Na VPS execute (cole tudo): "
+    "cd /var/www/ORC_Ribb && systemctl stop orc-ribb; "
+    "killall -9 uvicorn 2>/dev/null; sleep 1; "
+    "SVC=$(systemctl show -p User --value orc-ribb); SVC=${SVC:-root}; "
+    "chown -R \"$SVC:$SVC\" data; chmod 755 data data/database; "
+    "chmod 664 data/database/orc_ribb.db 2>/dev/null; "
+    "rm -f data/database/orc_ribb.db-shm; "
     "source .venv/bin/activate && python -m src.db.fix_db_permissions && "
     "systemctl start orc-ribb && curl -sS https://orc.gontijoensina.com/health"
 )
@@ -122,7 +120,11 @@ def _startup() -> None:
         ensure_logo_dir()
         (ROOT_DIR / "data" / "database" / "backups").mkdir(parents=True, exist_ok=True)
         prepare_db_files()
+        from src.db.database import consolidate_to_delete_journal, recover_wal_sidecars
+
+        recover_wal_sidecars()
         migrate()
+        consolidate_to_delete_journal()
         # Smoke test — se falhar, loga com diagnóstico completo
         with connect() as conn:
             conn.execute("SELECT 1").fetchone()

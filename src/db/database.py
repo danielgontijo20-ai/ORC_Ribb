@@ -1,11 +1,11 @@
 """
 Conexão e criação do banco SQLite.
 
-Didático:
-- SQLite guarda tudo em UM arquivo (data/database/orc_ribb.db).
-- Em modo WAL também usa .db-wal e .db-shm — se esses arquivos ficarem
-  com dono/permissão errados (ex.: deploy como root), o app quebra com
-  "unable to open database file" mesmo com o .db "ok".
+Importante (VPS):
+- Modo WAL cria orc_ribb.db-wal e .db-shm. Se ficarem travados/stale,
+  o SQLite responde "unable to open database file" mesmo com permissões OK.
+- Este módulo usa journal DELETE por padrão (um arquivo só) e, na falha,
+  tenta recuperar sidecars WAL sem apagar o .db.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+import time
 from pathlib import Path
 
 log = logging.getLogger(__name__)
@@ -21,6 +22,12 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 DB_DIR = ROOT_DIR / "data" / "database"
 DB_PATH = DB_DIR / "orc_ribb.db"
 SCHEMA_PATH = Path(__file__).resolve().parent / "schema.sql"
+
+# DELETE = sem -wal/-shm no dia a dia (bem mais estável na VPS Hostinger).
+# Pode ser forçado via env: ORC_SQLITE_JOURNAL=WAL|DELETE
+JOURNAL_MODE = (os.environ.get("ORC_SQLITE_JOURNAL") or "DELETE").strip().upper()
+if JOURNAL_MODE not in ("DELETE", "WAL", "TRUNCATE", "PERSIST", "MEMORY", "OFF"):
+    JOURNAL_MODE = "DELETE"
 
 
 def _sidecar_paths(db_path: Path) -> tuple[Path, Path]:
@@ -62,13 +69,9 @@ def ensure_db_dir(db_path: Path | str = DB_PATH) -> Path:
 
 
 def prepare_db_files(db_path: Path | str = DB_PATH) -> Path:
-    """
-    Prepara pasta/arquivos do SQLite e tenta corrigir permissões dos sidecars WAL.
-    Não apaga dados — só chmod quando o processo tiver permissão.
-    """
+    """Ajusta permissões de .db / -wal / -shm quando possível."""
     path = ensure_db_dir(db_path)
-    candidates = [path, *_sidecar_paths(path)]
-    for p in candidates:
+    for p in (path, *_sidecar_paths(path)):
         if not p.exists():
             continue
         try:
@@ -80,6 +83,50 @@ def prepare_db_files(db_path: Path | str = DB_PATH) -> Path:
     except OSError:
         pass
     return path
+
+
+def recover_wal_sidecars(db_path: Path | str = DB_PATH) -> list[str]:
+    """
+    Recuperação segura quando o open falha com WAL stale.
+    - Remove apenas o -shm (recriável).
+    - NÃO apaga o -wal (contém commits pendentes).
+    """
+    path = Path(db_path)
+    actions: list[str] = []
+    wal, shm = _sidecar_paths(path)
+    if shm.exists():
+        try:
+            shm.unlink()
+            actions.append(f"removeu {shm.name}")
+            log.warning("DB: removeu sidecar stale %s", shm.name)
+        except OSError as exc:
+            actions.append(f"falha ao remover {shm.name}: {exc}")
+    return actions
+
+
+def consolidate_to_delete_journal(db_path: Path | str = DB_PATH) -> bool:
+    """
+    Abre o banco, faz checkpoint do WAL e muda para journal DELETE.
+    Assim -wal/-shm deixam de ser necessários no dia a dia.
+    """
+    path = prepare_db_files(db_path)
+    try:
+        conn = sqlite3.connect(str(path), timeout=60)
+        try:
+            conn.execute("PRAGMA busy_timeout=60000")
+            try:
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            except sqlite3.Error as exc:
+                log.warning("DB: checkpoint falhou (%s)", exc)
+            mode = conn.execute("PRAGMA journal_mode=DELETE").fetchone()
+            conn.commit()
+            log.info("DB: journal_mode=%s", mode[0] if mode else "?")
+            return True
+        finally:
+            conn.close()
+    except sqlite3.Error as exc:
+        log.warning("DB: consolidate falhou (%s)", exc)
+        return False
 
 
 def db_fs_status(db_path: Path | str = DB_PATH) -> dict:
@@ -97,11 +144,13 @@ def db_fs_status(db_path: Path | str = DB_PATH) -> dict:
         "db_readable": path.exists() and os.access(path, os.R_OK),
         "db_writable": path.exists() and os.access(path, os.W_OK),
         "db_size_bytes": path.stat().st_size if path.is_file() else None,
+        "journal_mode_pref": JOURNAL_MODE,
         "wal": _file_access(wal),
         "shm": _file_access(shm),
-        # compat com health antigo
         "wal_exists": wal.exists(),
         "shm_exists": shm.exists(),
+        "pid": os.getpid(),
+        "uid": os.geteuid(),
     }
 
 
@@ -110,13 +159,11 @@ def _open_connection(path: Path) -> sqlite3.Connection:
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA busy_timeout=30000")
-    # WAL precisa gravar -wal/-shm; se falhar, cai para DELETE (app continua).
     try:
-        mode = conn.execute("PRAGMA journal_mode=WAL").fetchone()
-        if mode and str(mode[0]).lower() != "wal":
-            log.warning("DB: journal_mode=%s (esperado wal)", mode[0])
+        mode = conn.execute(f"PRAGMA journal_mode={JOURNAL_MODE}").fetchone()
+        log.debug("DB: journal_mode=%s", mode[0] if mode else "?")
     except sqlite3.Error as exc:
-        log.warning("DB: WAL indisponível (%s); usando journal DELETE", exc)
+        log.warning("DB: journal_mode=%s falhou (%s); tentando DELETE", JOURNAL_MODE, exc)
         try:
             conn.execute("PRAGMA journal_mode=DELETE")
         except sqlite3.Error:
@@ -125,36 +172,35 @@ def _open_connection(path: Path) -> sqlite3.Connection:
 
 
 def connect(db_path: Path | str = DB_PATH) -> sqlite3.Connection:
-    """Abre conexão com o SQLite, com retry leve após corrigir permissões."""
+    """Abre conexão com retries e recuperação de sidecars WAL."""
     path = prepare_db_files(db_path)
-    try:
-        return _open_connection(path)
-    except sqlite3.OperationalError as exc:
-        msg = str(exc).lower()
-        if "unable to open" not in msg and "readonly" not in msg and "locked" not in msg:
-            raise
-        log.warning(
-            "DB: falha ao abrir (%s). FS=%s — tentando recuperar…",
-            exc,
-            db_fs_status(path),
-        )
-        prepare_db_files(path)
-        # Segunda tentativa: às vezes -shm stale impede abertura
-        wal, shm = _sidecar_paths(path)
-        for side in (shm,):
-            if side.exists() and not os.access(side, os.W_OK):
-                try:
-                    # Só remove shm se não for gravável e pudermos recriar na pasta
-                    if os.access(path.parent, os.W_OK):
-                        side.unlink(missing_ok=True)
-                        log.warning("DB: removeu sidecar sem escrita: %s", side.name)
-                except OSError as rm_exc:
-                    log.warning("DB: não removeu %s (%s)", side, rm_exc)
+    last_exc: Exception | None = None
+
+    for attempt in range(1, 4):
         try:
             return _open_connection(path)
-        except sqlite3.OperationalError:
-            log.exception("DB: segunda abertura falhou. FS=%s", db_fs_status(path))
-            raise
+        except sqlite3.OperationalError as exc:
+            last_exc = exc
+            msg = str(exc).lower()
+            log.warning(
+                "DB: abertura falhou (tentativa %s): %s | FS=%s",
+                attempt,
+                exc,
+                db_fs_status(path),
+            )
+            if "unable to open" not in msg and "readonly" not in msg and "locked" not in msg:
+                raise
+            prepare_db_files(path)
+            if attempt == 1:
+                recover_wal_sidecars(path)
+            elif attempt == 2:
+                # Tenta consolidar WAL → DELETE (requer open; se falhar, segue)
+                consolidate_to_delete_journal(path)
+            time.sleep(0.15 * attempt)
+
+    assert last_exc is not None
+    log.exception("DB: esgotaram tentativas de abertura. FS=%s", db_fs_status(path))
+    raise last_exc
 
 
 def init_db(db_path: Path | str = DB_PATH) -> Path:
