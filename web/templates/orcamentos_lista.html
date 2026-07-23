@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Orçamentos — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="topbar">
+  <h1 class="brand">Histórico de Orçamentos</h1>
+  <div class="userbox">
+    <a class="btn btn-ghost" href="/menu">← Menu</a>
+  </div>
+</div>
+
+<div class="card surface">
+  <form class="filters" method="get" action="/orcamentos">
+    <div>
+      <label>Número</label>
+      <input name="termo" value="{{ termo }}" placeholder="ORC-00001" />
+    </div>
+    <div>
+      <label>Cliente</label>
+      <input name="cliente" value="{{ cliente }}" placeholder="Nome ou CNPJ" />
+    </div>
+    <div>
+      <label>Status</label>
+      <select name="status">
+        <option value="" {% if not status %}selected{% endif %}>(todos)</option>
+        <option value="gerado" {% if status=='gerado' %}selected{% endif %}>Orçamento gerado</option>
+        <option value="aprovado" {% if status=='aprovado' %}selected{% endif %}>Aprovado</option>
+        <option value="reprovado" {% if status=='reprovado' %}selected{% endif %}>Reprovado</option>
+        <option value="rascunho" {% if status=='rascunho' %}selected{% endif %}>Rascunho</option>
+      </select>
+    </div>
+    <div style="align-self:end">
+      <button class="btn btn-primary" type="submit">Buscar</button>
+    </div>
+  </form>
+
+  <p class="muted">{{ lista|length }} orçamento(s)</p>
+  <div class="table-wrap">
+  <table class="data">
+    <thead>
+      <tr>
+        <th>Número</th>
+        <th>Cliente</th>
+        <th>Status</th>
+        <th>Valor</th>
+        <th>Atualizado</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in lista %}
+      <tr>
+        <td>{{ r.numero or '-' }}</td>
+        <td>{{ r.cliente_nome or '-' }}</td>
+        <td><span class="{{ r.status_badge }}">{{ r.status_label }}</span></td>
+        <td>{{ brl(r.valor_total or 0) }}</td>
+        <td>{{ r.atualizado_em or '-' }}</td>
+        <td class="row-actions">
+          <a class="btn btn-sm btn-primary" href="/orcamentos/{{ r.id }}">Abrir</a>
+          {% if pode_criar %}
+          <form method="post" action="/orcamentos/{{ r.id }}/clonar" style="display:inline;margin:0">
+            <button class="btn btn-sm btn-primary" type="submit">Clonar</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Nenhum orçamento encontrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</div>
+{% endblock %}

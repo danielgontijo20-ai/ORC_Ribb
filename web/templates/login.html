@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Login — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="card login-card">
+  <div class="login-brand">
+    <img class="login-logo" src="/static/img/Logo_login.png" alt="Ribbontech" />
+  </div>
+  <p class="muted login-sub">Acesso web com login e permissões por usuário.</p>
+  {% if erro %}
+  <div class="error">{{ erro }}</div>
+  {% endif %}
+  <form method="post" action="/login">
+    <label for="email">E-mail</label>
+    <input id="email" name="email" type="email" required autocomplete="username" placeholder="seu e-mail" />
+    <label for="senha">Senha</label>
+    <input id="senha" name="senha" type="password" required autocomplete="current-password" placeholder="••••••••" />
+    <button class="btn btn-primary btn-block" type="submit">Entrar</button>
+  </form>
+</div>
+{% endblock %}

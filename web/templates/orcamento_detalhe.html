@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% block title %}Orçamento {{ orc.numero }} — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="topbar">
+  <h1 class="brand">{{ orc.numero or orc.id }}</h1>
+  <div class="userbox"><a class="btn btn-ghost" href="/orcamentos">← Voltar</a></div>
+</div>
+
+<div class="card surface">
+  <p>
+    <strong>Cliente:</strong> {{ orc.cliente_nome or '-' }}<br/>
+    <strong>CNPJ:</strong> {{ orc.cliente_doc or '-' }}<br/>
+    <strong>Status:</strong> <span class="{{ status_badge }}">{{ status_label }}</span><br/>
+    {% if orc.status == 'reprovado' and orc.reprovacao_observacao %}
+    <strong>Motivo da reprovação:</strong> {{ orc.reprovacao_observacao }}<br/>
+    {% endif %}
+    <strong>Valor total:</strong> {{ brl(orc.valor_total or 0) }}<br/>
+    <strong>Lucro:</strong> {{ brl(orc.lucro_total or 0) }}<br/>
+    <strong>Criado em:</strong> {{ orc.criado_em }}<br/>
+    <strong>Atualizado em:</strong> {{ orc.atualizado_em }}
+  </p>
+
+  <div class="btn-row">
+    {% if pode_editar %}
+    <form method="post" action="/orcamentos/novo/continuar" style="margin:0">
+      <input type="hidden" name="orcamento_id" value="{{ orc.id }}" />
+      <button class="btn btn-primary" type="submit">
+        {% if orc.status == 'rascunho' %}Continuar rascunho{% else %}Editar orçamento{% endif %}
+      </button>
+    </form>
+    {% elif pode_consultar %}
+    <form method="post" action="/orcamentos/{{ orc.id }}/consultar" style="margin:0">
+      <button class="btn btn-primary" type="submit">Consultar</button>
+    </form>
+    {% endif %}
+    {% if pode_memoria %}
+    <a class="btn btn-primary" href="/orcamentos/{{ orc.id }}/memoria">Memória de cálculo</a>
+    {% endif %}
+    {% if pode_pdf %}
+    <a class="btn btn-primary" href="/orcamentos/{{ orc.id }}/pdf">Imprimir PDF</a>
+    {% endif %}
+    {% if pode_aprovar or pode_reprovar %}
+    <div class="btn-pair">
+      {% if pode_aprovar %}
+      <form method="post" action="/orcamentos/{{ orc.id }}/aprovar" style="margin:0">
+        <button class="btn btn-primary" type="submit">Aprovar</button>
+      </form>
+      {% endif %}
+      {% if pode_reprovar %}
+      <button class="btn btn-primary" type="button" data-open-reprovar>Reprovar</button>
+      {% endif %}
+    </div>
+    {% endif %}
+    {% if pode_clonar %}
+    <form method="post" action="/orcamentos/{{ orc.id }}/clonar" style="margin:0">
+      <button class="btn btn-primary" type="submit">Clonar</button>
+    </form>
+    {% endif %}
+  </div>
+  <p class="muted" style="margin-top:0.75rem">
+    {% if pode_editar %}
+    Rascunhos e orçamentos gerados podem ser editados. Ao terminar, use <strong>Salvar orçamento</strong>.
+    {% else %}
+    Orçamentos aprovados/reprovados não são editáveis. Use <strong>Clonar</strong> para criar uma cópia editável.
+    {% endif %}
+  </p>
+</div>
+
+<div class="card surface">
+  <h3>Itens</h3>
+  <table class="data">
+    <thead>
+      <tr>
+        <th>N°</th>
+        <th>Descrição</th>
+        <th>Und</th>
+        <th>Qtd</th>
+        <th>Preço Unit.</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in orc.itens %}
+      <tr>
+        <td>{{ '%02d'|format(loop.index) }}</td>
+        <td>{{ it.descricao }}</td>
+        <td>{{ it.unidade or '-' }}</td>
+        <td>{{ it.quantidade }}</td>
+        <td>{{ brl(it.preco_unitario or 0) }}</td>
+        <td>{{ brl(it.preco_total or 0) }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6">Sem itens.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% if pode_reprovar %}
+<div class="modal-backdrop js-modal" id="modal-reprovar" aria-hidden="true">
+  <div class="modal card">
+    <div class="topbar" style="margin-bottom:0.75rem">
+      <h3 style="margin:0">Reprovar orçamento</h3>
+      <button class="btn" type="button" data-close-reprovar>Fechar</button>
+    </div>
+    <p class="muted">Informe uma observação para justificar a reprovação (opcional).</p>
+    <form method="post" action="/orcamentos/{{ orc.id }}/reprovar">
+      <label>Observação</label>
+      <textarea name="observacao" rows="4" placeholder="Motivo da reprovação (opcional)"></textarea>
+      <div class="btn-row" style="margin-top:0.85rem">
+        <button class="btn" type="button" data-close-reprovar>Cancelar</button>
+        <button class="btn btn-danger" type="submit">Confirmar reprovação</button>
+      </div>
+    </form>
+  </div>
+</div>
+<script>
+(function () {
+  var modal = document.getElementById("modal-reprovar");
+  if (!modal) return;
+  function openM() {
+    modal.classList.add("is-open");
+    modal.setAttribute("aria-hidden", "false");
+  }
+  function closeM() {
+    modal.classList.remove("is-open");
+    modal.setAttribute("aria-hidden", "true");
+  }
+  document.querySelectorAll("[data-open-reprovar]").forEach(function (el) {
+    el.addEventListener("click", openM);
+  });
+  document.querySelectorAll("[data-close-reprovar]").forEach(function (el) {
+    el.addEventListener("click", closeM);
+  });
+  modal.addEventListener("click", function (e) {
+    if (e.target === modal) closeM();
+  });
+})();
+</script>
+{% endif %}
+{% endblock %}

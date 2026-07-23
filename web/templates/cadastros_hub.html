@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Cadastros — {{ app_name }}{% endblock %}
+{% block body %}
+<div class="topbar">
+  <h1 class="brand">Cadastros</h1>
+  <div class="userbox"><a class="btn btn-ghost" href="/menu">← Menu</a></div>
+</div>
+
+<div class="card surface menu-shell">
+  <p class="lead">
+    {% if pode_editar %}Incluir, editar e excluir registros.
+    {% else %}Modo consulta.
+    {% endif %}
+  </p>
+
+  <div class="menu-stack">
+    <div class="menu-actions">
+      <a class="menu-btn" href="/cadastros/nativos">VALORES NATIVOS</a>
+      <a class="menu-btn" href="/cadastros/clientes">CLIENTES</a>
+      <a class="menu-btn" href="/cadastros/materias">MATÉRIA PRIMA</a>
+      <a class="menu-btn" href="/cadastros/tubetes">TUBETES</a>
+      <a class="menu-btn" href="/cadastros/facas">FACAS</a>
+      <a class="menu-btn" href="/cadastros/caixas">CAIXAS</a>
+      <a class="menu-btn" href="/cadastros/suprimentos">SUPRIMENTOS</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
